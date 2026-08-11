@@ -98,6 +98,8 @@ struct NotchContentView: View {
             NotesCounter(notes: vm.notes)
         case .teleprompter:
             EmptyView()
+        case .credits:
+            EmptyView()
         case .settings:
             EmptyView()
         }
@@ -165,6 +167,8 @@ struct NotchContentView: View {
             NotesPane(notes: vm.notes, privacy: vm.privacy, wantsKeyboard: $vm.wantsKeyboard)
         case .teleprompter:
             TeleprompterPane(prompter: vm.teleprompter, wantsKeyboard: $vm.wantsKeyboard)
+        case .credits:
+            CreditsPane(usage: vm.usage, codex: vm.codex, cursor: vm.cursor)
         case .settings:
             SettingsPane(shelf: vm.shelf)
         }
