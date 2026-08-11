@@ -37,10 +37,18 @@ struct NotchGeometry {
     var tallExpandedSize: CGSize {
         CGSize(width: expandedSize.width, height: Self.tallBodyHeight)
     }
+
+    /// Body for the usage tab: two rows of cards need more headroom than a
+    /// list does, short of the teleprompter's full paragraph.
+    static let creditsBodyHeight: CGFloat = 330
+    var creditsExpandedSize: CGSize {
+        CGSize(width: expandedSize.width, height: Self.creditsBodyHeight)
+    }
+
     /// Tallest body any tab can ask for. The window is cut to this once and
     /// never resized: it is transparent outside the visible panel, and what is
     /// clickable is decided separately by the active rect.
-    var maxBodyHeight: CGFloat { max(expandedSize.height, Self.tallBodyHeight) }
+    var maxBodyHeight: CGFloat { max(expandedSize.height, Self.tallBodyHeight, Self.creditsBodyHeight) }
 
     /// What the body has left for content on an ordinary tab, once the header
     /// and the padding beneath are taken out.

@@ -99,3 +99,24 @@
 "Paste the script here" = "Paste the script here";
 "Ready" = "Ready";
 "Done" = "Done";
+
+/* Usage tab: Claude's own limits, fetched live with the Claude Code CLI's own
+   OAuth token. */
+"Usage" = "Usage";
+"5-hour window" = "5-hour window";
+"7-day window" = "7-day window";
+"Extra usage" = "Extra usage";
+"Not signed in to Claude" = "Not signed in to Claude";
+"Sign in with claude in Terminal,\nthen reopen this tab" = "Sign in with claude in Terminal,\nthen reopen this tab";
+"Can't reach Claude" = "Can't reach Claude";
+"No Codex sessions found yet" = "No Codex sessions found yet";
+"%d-day window" = "%d-day window";
+"%d-hour window" = "%d-hour window";
+"resets in %@" = "resets in %@";
+"resets any moment" = "resets any moment";
+"as of %@ ago" = "as of %@ ago";
+"as of just now" = "as of just now";
+"Cursor Models" = "Cursor Models";
+"Other Models" = "Other Models";
+"Not signed in to Cursor" = "Not signed in to Cursor";
+"Can't reach Cursor" = "Can't reach Cursor";

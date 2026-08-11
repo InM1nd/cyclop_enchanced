@@ -4,7 +4,7 @@ import Combine
 @MainActor
 final class NotchViewModel: ObservableObject {
     enum Tab: String, CaseIterable, Identifiable {
-        case media, shelf, clipboard, snippets, calendar, translate, notes, teleprompter, settings
+        case media, shelf, clipboard, snippets, calendar, translate, notes, teleprompter, credits, settings
         var id: String { rawValue }
 
         var symbol: String {
@@ -17,6 +17,7 @@ final class NotchViewModel: ObservableObject {
             case .translate: return "translate"
             case .notes: return "note.text"
             case .teleprompter: return "text.viewfinder"
+            case .credits: return "gauge"
             case .settings: return "gearshape.fill"
             }
         }
@@ -31,6 +32,7 @@ final class NotchViewModel: ObservableObject {
             case .translate: return localized("Translate")
             case .notes: return localized("Notes")
             case .teleprompter: return localized("Teleprompter")
+            case .credits: return localized("Usage")
             case .settings: return localized("Settings")
             }
         }
@@ -49,7 +51,7 @@ final class NotchViewModel: ObservableObject {
         /// past on the way to a track or a calendar, so it sits last,
         /// furthest from the tabs people actually rest on.
         static let leftRail: [Tab] = [.media, .shelf, .clipboard, .snippets, .calendar, .translate]
-        static let rightRail: [Tab] = [.notes, .teleprompter, .settings]
+        static let rightRail: [Tab] = [.notes, .teleprompter, .credits, .settings]
     }
 
     @Published var isOpen = false
@@ -69,6 +71,13 @@ final class NotchViewModel: ObservableObject {
             // prompt. It is asked here, with the shelf on screen, rather than
             // at launch with nothing to explain it.
             if tab == .shelf { shelf.refreshFromDisk() }
+            // Another tool's cache, refreshed on its own clock — read on the
+            // way in, same as the snippets file.
+            if tab == .credits {
+                usage.reload()
+                codex.reload()
+                cursor.reload()
+            }
             // Leaving the notes sweeps out the blank ones — they cost one
             // hover to recreate, and a trail of empty cards is the clutter a
             // scratchpad exists to avoid.
@@ -110,6 +119,9 @@ final class NotchViewModel: ObservableObject {
     let snippets: SnippetStore
     let notes: NoteStore
     let teleprompter: TeleprompterStore
+    let usage = ClaudeUsageStore()
+    let codex = CodexUsageStore()
+    let cursor = CursorUsageStore()
     /// Shared by every pane that shows something worth not showing.
     let privacy = PrivacyMode()
 
@@ -169,12 +181,18 @@ final class NotchViewModel: ObservableObject {
     /// that step the collapsed size and leave the whole body drawn but deaf to
     /// the pointer.
     ///
-    /// One tab is taller than the rest. Type large enough to read at a glance
-    /// leaves room for two lines in the standard body, and two lines is not a
-    /// teleprompter — it is a countdown. The extra height buys the paragraph
-    /// the reader needs to see coming.
+    /// Two tabs ask for more than the standard body. Type large enough to
+    /// read at a glance leaves room for two lines in the standard body, and
+    /// two lines is not a teleprompter — it is a countdown. The extra height
+    /// buys the paragraph the reader needs to see coming. Usage asks for
+    /// less than that, just enough that its two rows of cards are not
+    /// squeezed into the same body a one-line agenda gets by on.
     var openBodySize: CGSize {
-        tab == .teleprompter ? geometry.tallExpandedSize : geometry.expandedSize
+        switch tab {
+        case .teleprompter: geometry.tallExpandedSize
+        case .credits: geometry.creditsExpandedSize
+        default: geometry.expandedSize
+        }
     }
 
     /// Size of the visible body for the current state.

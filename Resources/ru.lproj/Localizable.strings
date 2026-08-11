@@ -98,3 +98,23 @@
 "Paste the script here" = "Вставьте сюда сценарий";
 "Ready" = "Готово";
 "Done" = "Готово";
+
+/* Вкладка лимитов — живые данные Claude через тот же OAuth-токен, что и Claude Code CLI. */
+"Usage" = "Лимиты";
+"5-hour window" = "5-часовое окно";
+"7-day window" = "7-дневное окно";
+"Extra usage" = "Доп. кредиты";
+"Not signed in to Claude" = "Не авторизовано в Claude";
+"Sign in with claude in Terminal,\nthen reopen this tab" = "Войдите через claude в Терминале\nи откройте вкладку заново";
+"Can't reach Claude" = "Не удаётся связаться с Claude";
+"No Codex sessions found yet" = "Пока нет сессий Codex";
+"%d-day window" = "%d-дневное окно";
+"%d-hour window" = "%d-часовое окно";
+"resets in %@" = "сброс через %@";
+"resets any moment" = "сброс с минуты на минуту";
+"as of %@ ago" = "данные %@ назад";
+"as of just now" = "данные только что";
+"Cursor Models" = "Модели Cursor";
+"Other Models" = "Другие модели";
+"Not signed in to Cursor" = "Не авторизовано в Cursor";
+"Can't reach Cursor" = "Не удаётся связаться с Cursor";
