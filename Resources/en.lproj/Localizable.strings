@@ -99,3 +99,17 @@
 "Paste the script here" = "Paste the script here";
 "Ready" = "Ready";
 "Done" = "Done";
+
+/* Pomodoro */
+"Pomodoro" = "Pomodoro";
+"Focus" = "Focus";
+"Break" = "Break";
+"Long Break" = "Long Break";
+"Classic" = "Classic";
+"Short" = "Short";
+"Long" = "Long";
+"Custom" = "Custom";
+"Reset" = "Reset";
+"Skip" = "Skip";
+"Focus done — time for a break" = "Focus done — time for a break";
+"Break over — back to focus" = "Break over — back to focus";

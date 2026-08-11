@@ -98,3 +98,17 @@
 "Paste the script here" = "Вставьте сюда сценарий";
 "Ready" = "Готово";
 "Done" = "Готово";
+
+/* Помодоро */
+"Pomodoro" = "Помодоро";
+"Focus" = "Фокус";
+"Break" = "Перерыв";
+"Long Break" = "Длинный перерыв";
+"Classic" = "Классика";
+"Short" = "Короткий";
+"Long" = "Длинный";
+"Custom" = "Свой";
+"Reset" = "Сброс";
+"Skip" = "Пропуск";
+"Focus done — time for a break" = "Фокус закончен — пора на перерыв";
+"Break over — back to focus" = "Перерыв окончен — обратно к фокусу";

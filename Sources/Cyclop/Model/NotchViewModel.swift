@@ -4,7 +4,7 @@ import Combine
 @MainActor
 final class NotchViewModel: ObservableObject {
     enum Tab: String, CaseIterable, Identifiable {
-        case media, shelf, clipboard, snippets, calendar, translate, notes, teleprompter, settings
+        case media, shelf, clipboard, snippets, calendar, translate, notes, teleprompter, pomodoro, settings
         var id: String { rawValue }
 
         var symbol: String {
@@ -17,6 +17,7 @@ final class NotchViewModel: ObservableObject {
             case .translate: return "translate"
             case .notes: return "note.text"
             case .teleprompter: return "text.viewfinder"
+            case .pomodoro: return "timer"
             case .settings: return "gearshape.fill"
             }
         }
@@ -31,6 +32,7 @@ final class NotchViewModel: ObservableObject {
             case .translate: return localized("Translate")
             case .notes: return localized("Notes")
             case .teleprompter: return localized("Teleprompter")
+            case .pomodoro: return localized("Pomodoro")
             case .settings: return localized("Settings")
             }
         }
@@ -49,7 +51,7 @@ final class NotchViewModel: ObservableObject {
         /// past on the way to a track or a calendar, so it sits last,
         /// furthest from the tabs people actually rest on.
         static let leftRail: [Tab] = [.media, .shelf, .clipboard, .snippets, .calendar, .translate]
-        static let rightRail: [Tab] = [.notes, .teleprompter, .settings]
+        static let rightRail: [Tab] = [.notes, .teleprompter, .pomodoro, .settings]
     }
 
     @Published var isOpen = false
@@ -110,6 +112,7 @@ final class NotchViewModel: ObservableObject {
     let snippets: SnippetStore
     let notes: NoteStore
     let teleprompter: TeleprompterStore
+    let pomodoro = PomodoroStore()
     /// Shared by every pane that shows something worth not showing.
     let privacy = PrivacyMode()
 
@@ -150,10 +153,14 @@ final class NotchViewModel: ObservableObject {
             shelf.objectWillChange,
             clipboard.objectWillChange,
             calendar.objectWillChange,
+            pomodoro.objectWillChange,
         ] {
             child
                 .sink { [weak self] _ in
-                    guard let self, self.isOpen || self.isDropTargeted else { return }
+                    guard let self else { return }
+                    // Pomodoro paints a rim on the collapsed island, so its
+                    // phase changes have to redraw the view while closed.
+                    guard self.isOpen || self.isDropTargeted || self.pomodoro.isRunning else { return }
                     self.objectWillChange.send()
                 }
                 .store(in: &cancellables)

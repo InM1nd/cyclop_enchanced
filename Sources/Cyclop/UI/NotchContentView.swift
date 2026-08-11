@@ -10,14 +10,43 @@ struct NotchContentView: View {
     var body: some View {
         // The shape is wider than the body by `topRadius` on each side: that
         // slack is where the concave shoulders live, so it must not be clipped.
+        let shape = NotchShape(
+            topRadius: topRadius,
+            bottomRadius: isOpen ? Theme.openBottomRadius : Theme.collapsedBottomRadius
+        )
+        let shapeWidth = size.width + 2 * topRadius
+        let rim = isOpen ? nil : Self.rimColor(for: vm.pomodoro.collapsedRimPhase)
+        // Collapsed, paint a hair past the reported notch: `auxiliaryTop*Area`
+        // width is occasionally a point shy of the cutout the eye reads, and a
+        // stroke on that tight box looked biased to one side.
+        let islandWidth = shapeWidth + (isOpen ? 0 : 2)
+        let rimThickness: CGFloat = 1.5
+        let rimPad: CGFloat = rim == nil ? 0 : rimThickness + 2
+
         ZStack(alignment: .top) {
-            NotchShape(
-                topRadius: topRadius,
-                bottomRadius: isOpen ? Theme.openBottomRadius : Theme.collapsedBottomRadius
-            )
-            .fill(Color.black)
-            .frame(width: size.width + 2 * topRadius, height: size.height)
-            .shadow(color: .black.opacity(isOpen ? 0.5 : 0), radius: 18, y: 8)
+            if let rim {
+                // Plate behind the island, same path, evenly larger — uniform
+                // on left/right/bottom. A stroked+blurred path was what made
+                // one side look tighter than the other.
+                shape
+                    .fill(rim.opacity(0.45))
+                    .frame(
+                        width: islandWidth + 2 * (rimThickness + 1),
+                        height: size.height + rimThickness + 1
+                    )
+                    .blur(radius: 1.2)
+                shape
+                    .fill(rim)
+                    .frame(
+                        width: islandWidth + 2 * rimThickness,
+                        height: size.height + rimThickness
+                    )
+            }
+
+            shape
+                .fill(Color.black)
+                .frame(width: islandWidth, height: size.height)
+                .shadow(color: .black.opacity(isOpen ? 0.5 : 0), radius: 18, y: 8)
 
             VStack(spacing: 0) {
                 header
@@ -29,10 +58,26 @@ struct NotchContentView: View {
             .frame(width: size.width, height: size.height, alignment: .top)
             .clipped()
         }
-        .frame(width: size.width + 2 * topRadius, height: size.height, alignment: .top)
+        .frame(
+            width: islandWidth + 2 * rimPad,
+            height: size.height + rimPad,
+            alignment: .top
+        )
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(Theme.openAnimation, value: isOpen)
         .animation(Theme.paneAnimation, value: vm.tab)
+        .animation(.easeInOut(duration: 0.35), value: vm.pomodoro.collapsedRimPhase)
+    }
+
+    /// Coral while focusing, mint on a short break, blue on a long one —
+    /// readable at a glance from across the desk.
+    private static func rimColor(for phase: PomodoroStore.Phase?) -> Color? {
+        switch phase {
+        case .work: return Color(red: 1.0, green: 0.38, blue: 0.32)
+        case .shortBreak: return Color(red: 0.35, green: 0.82, blue: 0.55)
+        case .longBreak: return Color(red: 0.40, green: 0.62, blue: 1.0)
+        case nil: return nil
+        }
     }
 
     // MARK: - Header
@@ -98,6 +143,10 @@ struct NotchContentView: View {
             NotesCounter(notes: vm.notes)
         case .teleprompter:
             EmptyView()
+        case .pomodoro:
+            Text(vm.pomodoro.clock)
+                .font(.system(size: 10, weight: .medium).monospacedDigit())
+                .foregroundStyle(vm.pomodoro.isRunning ? Color.white.opacity(0.8) : Theme.tertiary)
         case .settings:
             EmptyView()
         }
@@ -165,6 +214,8 @@ struct NotchContentView: View {
             NotesPane(notes: vm.notes, privacy: vm.privacy, wantsKeyboard: $vm.wantsKeyboard)
         case .teleprompter:
             TeleprompterPane(prompter: vm.teleprompter, wantsKeyboard: $vm.wantsKeyboard)
+        case .pomodoro:
+            PomodoroPane(pomodoro: vm.pomodoro)
         case .settings:
             SettingsPane(shelf: vm.shelf)
         }
