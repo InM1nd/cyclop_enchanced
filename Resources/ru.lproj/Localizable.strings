@@ -119,3 +119,17 @@
 "Other Models" = "Другие модели";
 "Not signed in to Cursor" = "Не авторизовано в Cursor";
 "Can't reach Cursor" = "Не удаётся связаться с Cursor";
+
+/* Помодоро */
+"Pomodoro" = "Помодоро";
+"Focus" = "Фокус";
+"Break" = "Перерыв";
+"Long Break" = "Длинный перерыв";
+"Classic" = "Классика";
+"Short" = "Короткий";
+"Long" = "Длинный";
+"Custom" = "Свой";
+"Reset" = "Сброс";
+"Skip" = "Пропуск";
+"Focus done — time for a break" = "Фокус закончен — пора на перерыв";
+"Break over — back to focus" = "Перерыв окончен — обратно к фокусу";

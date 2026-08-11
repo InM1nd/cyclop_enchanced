@@ -121,3 +121,17 @@
 "Other Models" = "Other Models";
 "Not signed in to Cursor" = "Not signed in to Cursor";
 "Can't reach Cursor" = "Can't reach Cursor";
+
+/* Pomodoro */
+"Pomodoro" = "Pomodoro";
+"Focus" = "Focus";
+"Break" = "Break";
+"Long Break" = "Long Break";
+"Classic" = "Classic";
+"Short" = "Short";
+"Long" = "Long";
+"Custom" = "Custom";
+"Reset" = "Reset";
+"Skip" = "Skip";
+"Focus done — time for a break" = "Focus done — time for a break";
+"Break over — back to focus" = "Break over — back to focus";
