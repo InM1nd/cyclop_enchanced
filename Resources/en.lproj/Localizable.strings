@@ -18,6 +18,7 @@
 /* Settings tab */
 "General" = "General";
 "Launch at Login" = "Launch at Login";
+"Keep Awake with Lid Closed" = "Keep Awake with Lid Closed";
 "Screenshots" = "Screenshots";
 "Save Clipboard Screenshots" = "Save Clipboard Screenshots";
 "Show Screenshots Folder" = "Show Screenshots Folder";
