@@ -17,6 +17,7 @@
 /* Вкладка настроек */
 "General" = "Общее";
 "Launch at Login" = "Запускать при входе";
+"Keep Awake with Lid Closed" = "Не спать с закрытой крышкой";
 "Screenshots" = "Скриншоты";
 "Save Clipboard Screenshots" = "Сохранять скриншоты из буфера";
 "Show Screenshots Folder" = "Показать папку скриншотов";

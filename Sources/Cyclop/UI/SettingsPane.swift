@@ -8,6 +8,7 @@ import ServiceManagement
 /// other than as a menu that grows a new row per feature.
 struct SettingsPane: View {
     @ObservedObject var shelf: ShelfStore
+    @ObservedObject var sleepManager: SleepManager
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
@@ -21,6 +22,11 @@ struct SettingsPane: View {
                         symbol: "arrow.forward.to.line",
                         title: localized("Launch at Login"),
                         isOn: launchAtLoginBinding
+                    )
+                    toggleRow(
+                        symbol: "cup.and.saucer.fill",
+                        title: localized("Keep Awake with Lid Closed"),
+                        isOn: keepAwakeBinding
                     )
                 }
 
@@ -90,6 +96,13 @@ struct SettingsPane: View {
                 }
                 launchAtLogin = SMAppService.mainApp.status == .enabled
             }
+        )
+    }
+
+    private var keepAwakeBinding: Binding<Bool> {
+        Binding(
+            get: { sleepManager.isEnabled },
+            set: { sleepManager.setEnabled($0) }
         )
     }
 

@@ -170,7 +170,7 @@ struct NotchContentView: View {
         case .credits:
             CreditsPane(usage: vm.usage, codex: vm.codex, cursor: vm.cursor)
         case .settings:
-            SettingsPane(shelf: vm.shelf)
+            SettingsPane(shelf: vm.shelf, sleepManager: vm.sleepManager)
         }
     }
 }

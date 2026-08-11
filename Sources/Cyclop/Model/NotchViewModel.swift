@@ -122,6 +122,7 @@ final class NotchViewModel: ObservableObject {
     let usage = ClaudeUsageStore()
     let codex = CodexUsageStore()
     let cursor = CursorUsageStore()
+    let sleepManager = SleepManager()
     /// Shared by every pane that shows something worth not showing.
     let privacy = PrivacyMode()
 
@@ -249,6 +250,7 @@ final class NotchViewModel: ObservableObject {
         calendar.stop()
         // Whatever was typed makes it to disk even when quitting mid-thought.
         notes.flush()
+        sleepManager.stop()
     }
 
     /// A screenshot that arrived on its own — copied elsewhere, or synced
