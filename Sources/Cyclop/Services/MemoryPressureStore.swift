@@ -1,12 +1,12 @@
+import CyclopLogic
 import Darwin
 import Foundation
 
 /// RAM used, swap, disk, and the jetsam pressure Activity Monitor graphs.
 ///
-/// The collapsed notch glows from **used percent** against the user's
-/// yellow/red thresholds — 70 / 90 out of the box — not from jetsam. Jetsam
-/// can go yellow while percent is still low, and the other way around on an
-/// 8 GB machine that is simply full. Percent is the number people mean.
+/// The tab follows that graph. The collapsed notch does not: yellow jetsam
+/// is treated as a workday baseline, and the island lights only when jetsam
+/// is already red. Used-percent is an extra tripwire, off unless switched on.
 @MainActor
 final class MemoryPressureStore: ObservableObject {
     enum Level: String {
@@ -36,20 +36,16 @@ final class MemoryPressureStore: ObservableObject {
     /// baseline here, so the island stays dark until jetsam goes red.
     /// Percent is an extra tripwire, and only when the user turned it on.
     var glowLevel: Level {
-        let fromPressure: Level = level == .critical ? .critical : .normal
-        guard glowFromPercent else { return fromPressure }
-        let fromPercent: Level
-        if usedPercent >= Double(redThreshold) {
-            fromPercent = .critical
-        } else if usedPercent >= Double(yellowThreshold) {
-            fromPercent = .warn
-        } else {
-            fromPercent = .normal
-        }
-        switch (fromPressure, fromPercent) {
-        case (.critical, _), (_, .critical): return .critical
-        case (.warn, _), (_, .warn): return .warn
-        default: return .normal
+        switch MemoryGlow.notch(
+            pressureIsRed: level == .critical,
+            glowFromPercent: glowFromPercent,
+            usedPercent: usedPercent,
+            yellowAt: yellowThreshold,
+            redAt: redThreshold
+        ) {
+        case .normal: return .normal
+        case .warn: return .warn
+        case .critical: return .critical
         }
     }
 

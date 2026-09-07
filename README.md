@@ -34,13 +34,19 @@ that works is below.
 | **Calendar** | The next meeting a week ahead: how long until it starts and a button that joins the call — Zoom, Meet, Teams and others. The rest of the meetings as a list |
 | **Translate** | Type on the left, the translation appears on the right — by itself, offline, using macOS's own facilities. English goes to Russian, Russian to English; the direction comes from the script the text is written in. macOS does not preinstall language packs, so the first time you have to download one: System Settings → General → Language & Region → "Translation Languages…" |
 | **Teleprompter** | A script that scrolls under the camera at a speed you set. The notch is the one place on the screen a teleprompter belongs: reading happens right beside the lens, so on the recording the eyes stay on the camera instead of travelling to a window below it. The panel holds itself open while the text is moving — reading a script means not touching the trackpad |
-| **Notes** | Scratch, on the right rail of icons: jot something down, come back, delete it or carry it off through the clipboard. Hovering lands with the caret ready; blank notes sweep themselves out |
+| **Notes** | Scratch, on the right rail of icons: jot something down, come back, delete it or carry it off through the clipboard. Hovering lands with the caret ready; blank notes sweep themselves out. A note can become a todo list and back |
+| **Usage** | Live limits for Claude, Codex, Cursor and OpenCode. Cards you do not use can be turned off in Settings — three stay in one row, four become a 2×2 |
+| **Pomodoro** | Focus and break from the notch; the collapsed island carries the phase colour while a session is running |
+| **Memory** | The same pressure graph Activity Monitor draws (green / yellow / red), plus a list of caches that are safe to drop. The notch glows **only on red** — yellow on the graph is ordinary work, especially on 16 GB. An optional RAM-% glow sits in Settings, off by default |
+| **Colors** | An eyedropper; the value copies as HEX |
 
 The panel opens when the pointer reaches the notch and collapses when it leaves.
 Tabs switch on hover as well — but only if the pointer has come to rest on the
 icon: one passing through switches nothing. During a file drag the panel opens by
 itself and goes straight to the shelf. The menu bar icon toggles the panel,
-enables launch at login, and quits.
+opens Settings, starts the idle screen, hides contents, and quits. Tabs on the
+rails can be hidden from the full Settings window (Work / Call / Minimal
+presets).
 
 ## Requirements
 
@@ -56,6 +62,7 @@ area at the top centre of the screen as one.
 git clone https://github.com/akalikbergenov/cyclop.git
 cd cyclop
 ./Scripts/bundle.sh          # swift build + assemble the .app + ad-hoc sign
+swift run CyclopLogicCheck   # glow + Usage grid, no XCTest needed
 open build/Cyclop.app
 ```
 
@@ -130,10 +137,15 @@ Accessibility, no Screen Recording, and needs nothing configured in the browser.
 The pointer position is read through `NSEvent.mouseLocation`, the clipboard
 through the public `NSPasteboard`, Now Playing through a helper (see below).
 
-Calendar access is the only permission Cyclop ever requests. It is needed by the
-Calendar tab alone, and the system dialog appears neither at launch nor when the
-tab is opened, but on an explicit press of a button on a screen that explains
-why. Don't use the calendar and the app stays without permissions entirely.
+Calendar access is the only permission Cyclop asks for at launch of a feature.
+It is needed by the Calendar tab alone, and the system dialog appears neither at
+launch nor when the tab is opened, but on an explicit press of a button on a
+screen that explains why. Don't use the calendar and that prompt never appears.
+
+Cleaning system caches on the Memory tab is a second, optional permission: Full
+Disk Access. Without it the rest of the list still runs; the pane says so and
+offers the Settings button. Notifications for a meeting ten minutes out and for
+the end of a pomodoro are the third — macOS asks when the first one is due.
 
 A file put on the shelf from Downloads, Documents or the Desktop is the one thing
 macOS asks about separately, and it asks when the shelf is opened, not at launch.
@@ -435,6 +447,7 @@ no leaks: `leaks` against the live process finds zero.
 ## Layout
 
 ```
+Sources/CyclopLogic            glow policy and the Usage grid — tested
 Sources/Cyclop
 ├── main.swift                 entry point, .accessory
 ├── App/

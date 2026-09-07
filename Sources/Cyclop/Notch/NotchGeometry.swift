@@ -1,4 +1,5 @@
 import AppKit
+import CyclopLogic
 
 /// Physical description of the notch (or a synthetic one on Macs without it)
 /// plus every derived rect the panel needs, all in screen coordinates.
