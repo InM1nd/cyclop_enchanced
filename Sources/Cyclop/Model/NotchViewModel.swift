@@ -4,7 +4,7 @@ import Combine
 @MainActor
 final class NotchViewModel: ObservableObject {
     enum Tab: String, CaseIterable, Identifiable {
-        case media, shelf, clipboard, snippets, calendar, translate, notes, teleprompter, credits, pomodoro, settings
+        case media, shelf, clipboard, snippets, calendar, translate, notes, teleprompter, credits, pomodoro, memory, settings
         var id: String { rawValue }
 
         var symbol: String {
@@ -19,6 +19,7 @@ final class NotchViewModel: ObservableObject {
             case .teleprompter: return "text.viewfinder"
             case .credits: return "gauge"
             case .pomodoro: return "timer"
+            case .memory: return "memorychip"
             case .settings: return "gearshape.fill"
             }
         }
@@ -35,6 +36,7 @@ final class NotchViewModel: ObservableObject {
             case .teleprompter: return localized("Teleprompter")
             case .credits: return localized("Usage")
             case .pomodoro: return localized("Pomodoro")
+            case .memory: return localized("Memory")
             case .settings: return localized("Settings")
             }
         }
@@ -53,7 +55,7 @@ final class NotchViewModel: ObservableObject {
         /// past on the way to a track or a calendar, so it sits last,
         /// furthest from the tabs people actually rest on.
         static let leftRail: [Tab] = [.media, .shelf, .clipboard, .snippets, .calendar, .translate]
-        static let rightRail: [Tab] = [.notes, .teleprompter, .credits, .pomodoro, .settings]
+        static let rightRail: [Tab] = [.notes, .memory, .teleprompter, .credits, .pomodoro, .settings]
     }
 
     @Published var isOpen = false
@@ -80,6 +82,11 @@ final class NotchViewModel: ObservableObject {
                 codex.reload()
                 cursor.reload()
             }
+            if tab == .memory {
+                memory.setActive(true)
+                cleanup.scan()
+            }
+            if oldValue == .memory, tab != .memory { memory.setActive(false) }
             // Leaving the notes sweeps out the blank ones — they cost one
             // hover to recreate, and a trail of empty cards is the clutter a
             // scratchpad exists to avoid.
@@ -124,10 +131,16 @@ final class NotchViewModel: ObservableObject {
     let usage = ClaudeUsageStore()
     let codex = CodexUsageStore()
     let cursor = CursorUsageStore()
+    let usageProviders = UsageProviderSettings()
     let sleepManager = SleepManager()
     let pomodoro = PomodoroStore()
+    let memory = MemoryPressureStore()
+    let cleanup = CleanupStore()
     /// Shared by every pane that shows something worth not showing.
     let privacy = PrivacyMode()
+    /// Opens the full settings window. Set by the controller — the pane
+    /// cannot own a window of its own.
+    var onOpenFullSettings: (() -> Void)?
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -165,19 +178,121 @@ final class NotchViewModel: ObservableObject {
             media.objectWillChange,
             shelf.objectWillChange,
             clipboard.objectWillChange,
-            calendar.objectWillChange,
-            pomodoro.objectWillChange,
+            usageProviders.objectWillChange,
         ] {
             child
                 .sink { [weak self] _ in
                     guard let self else { return }
-                    // Pomodoro paints a rim on the collapsed island, so its
-                    // phase changes have to redraw the view while closed.
-                    guard self.isOpen || self.isDropTargeted || self.pomodoro.isRunning else { return }
+                    guard self.isOpen || self.isDropTargeted else { return }
                     self.objectWillChange.send()
                 }
                 .store(in: &cancellables)
         }
+        // These three paint the collapsed island: pomodoro's rim, memory
+        // pressure, the meeting glow. Their events are rare enough to
+        // redraw while closed — a 30 s calendar tick never reaches here
+        // because that timer is stopped with the panel.
+        for child in [
+            calendar.objectWillChange,
+            pomodoro.objectWillChange,
+            memory.objectWillChange,
+        ] {
+            child
+                .sink { [weak self] _ in self?.objectWillChange.send() }
+                .store(in: &cancellables)
+        }
+    }
+
+    /// Who owns the collapsed rim, if anyone.
+    ///
+    /// A meeting ten minutes out outranks memory, which outranks pomodoro:
+    /// a call is a deadline, yellow RAM is a hint, a focus session is a
+    /// choice already in progress.
+    enum CollapsedRim: Equatable {
+        case none
+        case meeting(pulsing: Bool)
+        case memoryWarn
+        case memoryCritical
+        case pomodoro(PomodoroStore.Phase)
+    }
+
+    var collapsedRim: CollapsedRim {
+        if rimPreview != .none { return rimPreview }
+        if calendar.approaching != nil {
+            return .meeting(pulsing: calendar.rimPulse)
+        }
+        switch memory.glowLevel {
+        case .critical: return .memoryCritical
+        case .warn: return .memoryWarn
+        case .normal: break
+        }
+        if let phase = pomodoro.collapsedRimPhase {
+            return .pomodoro(phase)
+        }
+        return .none
+    }
+
+    /// Settings preview — painted even while the panel is open.
+    @Published private(set) var rimPreview: CollapsedRim = .none
+    private var previewClear: DispatchWorkItem?
+    private var previewPulse: Timer?
+    private var previewPulseLeft = 0
+
+    func previewMemoryWarn() { holdPreview(.memoryWarn, seconds: 4) }
+    func previewMemoryCritical() { holdPreview(.memoryCritical, seconds: 4) }
+
+    func previewMeeting() {
+        cancelPreview()
+        previewPulseLeft = 6
+        rimPreview = .meeting(pulsing: true)
+        let timer = Timer(timeInterval: 0.4, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tickPreviewPulse() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        previewPulse = timer
+    }
+
+    func reloadUsage(force: Bool = false) {
+        usage.reload(force: force)
+        cursor.reload(force: force)
+        codex.reload()
+    }
+
+    private func holdPreview(_ rim: CollapsedRim, seconds: TimeInterval) {
+        cancelPreview()
+        rimPreview = rim
+        let work = DispatchWorkItem { [weak self] in
+            self?.rimPreview = .none
+        }
+        previewClear = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: work)
+    }
+
+    private func tickPreviewPulse() {
+        guard previewPulseLeft > 0 else {
+            previewPulse?.invalidate()
+            previewPulse = nil
+            rimPreview = .meeting(pulsing: false)
+            let work = DispatchWorkItem { [weak self] in
+                self?.rimPreview = .none
+            }
+            previewClear = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: work)
+            return
+        }
+        previewPulseLeft -= 1
+        if case .meeting(let pulsing) = rimPreview {
+            rimPreview = .meeting(pulsing: !pulsing)
+        }
+    }
+
+    private func cancelPreview() {
+        previewClear?.cancel()
+        previewClear = nil
+        previewPulse?.invalidate()
+        previewPulse = nil
+        previewPulseLeft = 0
+        rimPreview = .none
     }
 
     /// Body this tab takes when open — asked whether it is open yet or not.
@@ -198,7 +313,9 @@ final class NotchViewModel: ObservableObject {
     var openBodySize: CGSize {
         switch tab {
         case .teleprompter: geometry.tallExpandedSize
-        case .credits: geometry.creditsExpandedSize
+        case .credits:
+            geometry.creditsExpandedSize(forRows: UsageGrid.rows(for: usageProviders.enabled.count))
+        case .memory: geometry.toolsExpandedSize
         default: geometry.expandedSize
         }
     }
@@ -234,6 +351,7 @@ final class NotchViewModel: ObservableObject {
         // Only picks up where it left off if access was granted earlier; it
         // never prompts on its own.
         calendar.start()
+        memory.start()
 
         // Screenshots reach the shelf through here whether they were taken on
         // this Mac or on a phone: a copy made on the phone arrives in the same
@@ -255,6 +373,8 @@ final class NotchViewModel: ObservableObject {
         media.stop()
         clipboard.stop()
         calendar.stop()
+        memory.stop()
+        cancelPreview()
         // Whatever was typed makes it to disk even when quitting mid-thought.
         notes.flush()
         sleepManager.stop()

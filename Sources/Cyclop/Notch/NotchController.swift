@@ -7,6 +7,7 @@ final class NotchController {
     private var panel: NotchPanel?
     private var rootView: NotchRootView?
     private var viewModel: NotchViewModel?
+    private var settingsWindow: SettingsWindowController?
     private let pointer = PointerWatcher()
     private var closeActiveRectWork: DispatchWorkItem?
     private var cancellables = Set<AnyCancellable>()
@@ -79,8 +80,23 @@ final class NotchController {
     func teardown() {
         pointer.stop()
         viewModel?.stop()
+        settingsWindow?.close()
+        settingsWindow = nil
         panel?.acceptsKeyboard = false
         panel?.orderOut(nil)
+    }
+
+    /// Compact toggles stay in the notch; steppers, previews and folders
+    /// need a real window — and the collapsed island has to be visible for
+    /// the glow previews to mean anything.
+    func openSettings() {
+        guard let vm = viewModel else { return }
+        setOpen(false)
+        pointer.setInside(false)
+        if settingsWindow == nil {
+            settingsWindow = SettingsWindowController()
+        }
+        settingsWindow?.present(vm: vm)
     }
 
     func toggle() {
@@ -105,6 +121,9 @@ final class NotchController {
         viewModel = nil
         build()
         if let previousTab { viewModel?.tab = previousTab }
+        if settingsWindow?.window?.isVisible == true, let vm = viewModel {
+            settingsWindow?.present(vm: vm)
+        }
     }
 
     private func build() {
@@ -228,6 +247,8 @@ final class NotchController {
             }
             .store(in: &cancellables)
 
+        vm.onOpenFullSettings = { [weak self] in self?.openSettings() }
+
         vm.start()
 
         // A rebuilt panel starts closed. If the pointer is already sitting on
@@ -282,6 +303,8 @@ final class NotchController {
             withAnimation(Theme.openAnimation) { vm.isOpen = true }
             vm.media.setActive(true)
             vm.calendar.setActive(true)
+            if vm.tab == .memory { vm.memory.setActive(true) }
+            if vm.tab == .credits { vm.reloadUsage(force: true) }
         } else {
             // The keyboard goes first and the fold goes second — one run-loop
             // pass apart, never together. Dropped in the same pass, resigning
@@ -315,6 +338,7 @@ final class NotchController {
         withAnimation(Theme.openAnimation) { vm.isOpen = false }
         vm.media.setActive(false)
         vm.calendar.setActive(false)
+        vm.memory.setActive(false)
         // Shrink only once the panel has finished collapsing. Doing it
         // while it is still visibly there would leave a window in which
         // clicks land on whatever is behind the panel.

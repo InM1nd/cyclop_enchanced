@@ -1,5 +1,6 @@
 import AppKit
 import EventKit
+import UserNotifications
 
 /// Today's meetings, and the link that joins the next one.
 ///
@@ -44,6 +45,11 @@ final class CalendarStore: ObservableObject {
     @Published private(set) var meetings: [Meeting] = []
     /// Recomputed on a timer so the countdown in the header stays honest.
     @Published private(set) var now = Date()
+    /// Next meeting inside the ten-minute window, not yet started.
+    /// Drives the collapsed neon rim; `nil` the rest of the time.
+    @Published private(set) var approaching: Meeting?
+    /// Bright half of the "blink a couple of times" cycle.
+    @Published private(set) var rimPulse = false
 
     private let store = EKEventStore()
     private var timer: Timer?
@@ -52,6 +58,14 @@ final class CalendarStore: ObservableObject {
     /// keeps the countdown honest and drops meetings as they end — so it runs
     /// exactly while there are eyes.
     private var isActive = false
+    /// One-shot: fire when the next meeting enters the ten-minute window.
+    /// Cheap while collapsed — no polling, just a deadline.
+    private var alertWork: DispatchWorkItem?
+    private var pulseTimer: Timer?
+    private var pulseTicksLeft = 0
+    private var announcedIds = Set<String>()
+    private var askedForNotifications = false
+    private static let approachingWindow: TimeInterval = 10 * 60
     /// A day-long horizon leaves the tab empty every evening, which is exactly
     /// when one wonders what tomorrow looks like. A week is still glanceable
     /// because only the next meeting gets the large treatment.
@@ -77,6 +91,7 @@ final class CalendarStore: ObservableObject {
 
     func stop() {
         stopTimer()
+        cancelMeetingAlert()
         if let observer { NotificationCenter.default.removeObserver(observer) }
         observer = nil
     }
@@ -117,6 +132,7 @@ final class CalendarStore: ObservableObject {
                 self.observe()
                 self.reload()
                 if self.isActive { self.startTimer() }
+                self.scheduleMeetingAlert()
             }
         }
     }
@@ -185,7 +201,107 @@ final class CalendarStore: ObservableObject {
         // Drop finished meetings without a full refetch.
         if meetings.contains(where: { $0.end <= now }) {
             meetings.removeAll { $0.end <= now }
+            announcedIds = announcedIds.intersection(Set(meetings.map(\.id)))
         }
+        considerAlerts()
+    }
+
+    // MARK: - Meeting glow
+
+    /// Arms a deadline for the next meeting's ten-minute mark. The 30 s
+    /// countdown timer still sleeps while the panel is closed; this is the
+    /// one wake-up the collapsed rim is allowed.
+    private func scheduleMeetingAlert() {
+        alertWork?.cancel()
+        alertWork = nil
+        guard access == .granted else {
+            approaching = nil
+            return
+        }
+        guard let next, !next.isRunning else {
+            approaching = nil
+            return
+        }
+        let delay = next.start.addingTimeInterval(-Self.approachingWindow).timeIntervalSinceNow
+        if delay <= 0 {
+            considerAlerts()
+            return
+        }
+        approaching = nil
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated { self?.considerAlerts() }
+        }
+        alertWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    private func considerAlerts() {
+        guard let next, !next.isRunning else {
+            approaching = nil
+            return
+        }
+        let until = next.start.timeIntervalSinceNow
+        guard until > 0, until <= Self.approachingWindow else {
+            approaching = nil
+            return
+        }
+        approaching = next
+        guard !announcedIds.contains(next.id) else { return }
+        announcedIds.insert(next.id)
+        announceMeeting(next)
+        startRimPulse()
+    }
+
+    private func startRimPulse() {
+        pulseTimer?.invalidate()
+        pulseTicksLeft = 6
+        rimPulse = true
+        let timer = Timer(timeInterval: 0.4, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tickPulse() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        pulseTimer = timer
+    }
+
+    private func tickPulse() {
+        guard pulseTicksLeft > 0 else {
+            pulseTimer?.invalidate()
+            pulseTimer = nil
+            rimPulse = false
+            return
+        }
+        pulseTicksLeft -= 1
+        rimPulse.toggle()
+    }
+
+    private func cancelMeetingAlert() {
+        alertWork?.cancel()
+        alertWork = nil
+        pulseTimer?.invalidate()
+        pulseTimer = nil
+        pulseTicksLeft = 0
+        rimPulse = false
+        approaching = nil
+    }
+
+    private func announceMeeting(_ meeting: Meeting) {
+        requestNotificationsIfNeeded()
+        let content = UNMutableNotificationContent()
+        content.title = meeting.title
+        content.body = localized("Starts in 10 min")
+        content.sound = .default
+        let request = UNNotificationRequest(
+            identifier: "meeting.\(meeting.id)",
+            content: content,
+            trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
+    }
+
+    private func requestNotificationsIfNeeded() {
+        guard !askedForNotifications else { return }
+        askedForNotifications = true
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
     // MARK: - Loading
@@ -202,6 +318,8 @@ final class CalendarStore: ObservableObject {
         guard !calendars.isEmpty else {
             meetings = []
             now = Date()
+            approaching = nil
+            scheduleMeetingAlert()
             return
         }
         let start = Date()
@@ -226,6 +344,7 @@ final class CalendarStore: ObservableObject {
                 )
             }
         now = Date()
+        scheduleMeetingAlert()
     }
 
     /// Calendars for the status-bar picker (#36), each labelled with the pick
