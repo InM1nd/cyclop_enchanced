@@ -9,6 +9,13 @@ import ServiceManagement
 struct SettingsPane: View {
     @ObservedObject var shelf: ShelfStore
     @ObservedObject var sleepManager: SleepManager
+    @ObservedObject var memory: MemoryPressureStore
+    @ObservedObject var usageProviders: UsageProviderSettings
+    var compact: Bool = true
+    var onOpenFull: (() -> Void)? = nil
+    var onPreviewYellow: () -> Void
+    var onPreviewRed: () -> Void
+    var onPreviewMeeting: () -> Void
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
@@ -30,6 +37,31 @@ struct SettingsPane: View {
                     )
                 }
 
+                section(localized("Usage")) {
+                    ForEach(UsageProvider.allCases) { provider in
+                        toggleRow(
+                            symbol: provider.symbol,
+                            title: provider.title,
+                            isOn: Binding(
+                                get: { usageProviders.isEnabled(provider) },
+                                set: { usageProviders.setEnabled(provider, $0) }
+                            )
+                        )
+                    }
+                }
+
+                if compact {
+                    actionRow(symbol: "slider.horizontal.3", title: localized("All Settings…")) {
+                        onOpenFull?()
+                    }
+                    .padding(4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Theme.surface)
+                    )
+                }
+
+                if !compact {
                 section(localized("Screenshots")) {
                     toggleRow(
                         symbol: "photo.on.rectangle",
@@ -54,10 +86,58 @@ struct SettingsPane: View {
                     }
                 }
 
+                section(localized("Memory glow")) {
+                    toggleRow(
+                        symbol: "percent",
+                        title: localized("Also glow from RAM used"),
+                        isOn: glowFromPercentBinding
+                    )
+                    HStack(spacing: 8) {
+                        glowStepper(
+                            symbol: "circle.fill",
+                            tint: Color(red: 1.0, green: 0.78, blue: 0.20),
+                            title: localized("Yellow at"),
+                            value: memory.yellowThreshold,
+                            decrement: { memory.adjustYellow(by: -5) },
+                            increment: { memory.adjustYellow(by: 5) }
+                        )
+                        glowStepper(
+                            symbol: "circle.fill",
+                            tint: Color(red: 1.0, green: 0.35, blue: 0.32),
+                            title: localized("Red at"),
+                            value: memory.redThreshold,
+                            decrement: { memory.adjustRed(by: -5) },
+                            increment: { memory.adjustRed(by: 5) }
+                        )
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .opacity(memory.glowFromPercent ? 1 : 0.4)
+                    .disabled(!memory.glowFromPercent)
+                    Text(localized("Notch glows only when the graph is red."))
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(Theme.tertiary)
+                        .padding(.horizontal, 8)
+                        .padding(.bottom, 6)
+                }
+
+                section(localized("Preview glow")) {
+                    actionRow(symbol: "circle.fill", title: localized("Preview yellow")) {
+                        onPreviewYellow()
+                    }
+                    actionRow(symbol: "circle.fill", title: localized("Preview red")) {
+                        onPreviewRed()
+                    }
+                    actionRow(symbol: "sparkle", title: localized("Preview meeting")) {
+                        onPreviewMeeting()
+                    }
+                }
+
                 section(localized("Snippets")) {
                     actionRow(symbol: "doc.text", title: localized("Show Snippets File")) {
                         SnippetStore.reveal()
                     }
+                }
                 }
             }
             .padding(.top, 2)
@@ -103,6 +183,13 @@ struct SettingsPane: View {
         Binding(
             get: { sleepManager.isEnabled },
             set: { sleepManager.setEnabled($0) }
+        )
+    }
+
+    private var glowFromPercentBinding: Binding<Bool> {
+        Binding(
+            get: { memory.glowFromPercent },
+            set: { memory.setGlowFromPercent($0) }
         )
     }
 
@@ -163,6 +250,47 @@ struct SettingsPane: View {
         }
         .padding(.horizontal, 8)
         .frame(height: 26)
+    }
+
+    private func glowStepper(
+        symbol: String,
+        tint: Color,
+        title: String,
+        value: Int,
+        decrement: @escaping () -> Void,
+        increment: @escaping () -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: symbol)
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(tint)
+                Text(title)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(Theme.tertiary)
+            }
+            HStack(spacing: 6) {
+                Button(action: decrement) {
+                    Image(systemName: "minus")
+                        .font(.system(size: 9, weight: .semibold))
+                        .frame(width: 20, height: 20)
+                        .background(Circle().fill(Theme.surfaceHover))
+                }
+                .buttonStyle(.plain)
+                Text("\(value)%")
+                    .font(.system(size: 12, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(.white)
+                    .frame(minWidth: 36)
+                Button(action: increment) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 9, weight: .semibold))
+                        .frame(width: 20, height: 20)
+                        .background(Circle().fill(Theme.surfaceHover))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func actionRow(

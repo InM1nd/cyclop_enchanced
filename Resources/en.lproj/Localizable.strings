@@ -13,6 +13,9 @@
 
 /* Menu bar */
 "Open Panel" = "Open Panel";
+"Settings…" = "Settings…";
+"All Settings…" = "All Settings…";
+"Notch glows only when the graph is red." = "Notch glows only when the graph is red.";
 "Quit" = "Quit";
 
 /* Settings tab */
@@ -25,6 +28,7 @@
 "Clear Screenshots Folder" = "Clear Screenshots Folder";
 "Clear Screenshots Folder (%@)" = "Clear Screenshots Folder (%@)";
 "Show Snippets File" = "Show Snippets File";
+"No usage cards enabled — turn some on in Settings" = "No usage cards enabled — turn some on in Settings";
 
 /* Shelf */
 "Selected: %d" = "Selected: %d";
@@ -135,3 +139,54 @@
 "Skip" = "Skip";
 "Focus done — time for a break" = "Focus done — time for a break";
 "Break over — back to focus" = "Break over — back to focus";
+
+/* Memory tab: Activity Monitor's pressure graph, plus cache cleanup. */
+"Memory" = "Memory";
+"Memory Pressure · Green" = "Memory Pressure · Green";
+"Memory Pressure · Yellow" = "Memory Pressure · Yellow";
+"Memory Pressure · Red" = "Memory Pressure · Red";
+"Running optimally." = "Running optimally.";
+"Close unneeded tabs and quit unused apps." = "Close unneeded tabs and quit unused apps.";
+"The Mac is swapping. Close tabs, then clean caches below." = "The Mac is swapping. Close tabs, then clean caches below.";
+"Swap" = "Swap";
+"Disk free" = "Disk free";
+"Starts in 10 min" = "Starts in 10 min";
+"App & System Caches" = "App & System Caches";
+"Everything in ~/Library/Caches — every app rebuilds this from scratch." = "Everything in ~/Library/Caches — every app rebuilds this from scratch.";
+"npm Package Cache" = "npm Package Cache";
+"~/.npm — npm re-downloads packages as needed." = "~/.npm — npm re-downloads packages as needed.";
+"CLI Tool Cache" = "CLI Tool Cache";
+"~/.cache — shared cache folder used by many command-line dev tools." = "~/.cache — shared cache folder used by many command-line dev tools.";
+"pnpm Store" = "pnpm Store";
+"Runs “pnpm store prune” to drop packages nothing references anymore." = "Runs “pnpm store prune” to drop packages nothing references anymore.";
+"Docker Unused Data" = "Docker Unused Data";
+"Removes ALL unused images, containers, and volumes not currently in use — off by default, more destructive than the rest." = "Removes ALL unused images, containers, and volumes not currently in use — off by default, more destructive than the rest.";
+"App Cache Subfolders" = "App Cache Subfolders";
+"Cache-style folders (Cache, GPUCache, Code Cache…) found anywhere under Application Support. Never touches saved app data." = "Cache-style folders (Cache, GPUCache, Code Cache…) found anywhere under Application Support. Never touches saved app data.";
+"Cursor Database Backup" = "Cursor Database Backup";
+"state.vscdb.backup — a leftover backup file, always safe to remove." = "state.vscdb.backup — a leftover backup file, always safe to remove.";
+"Compact Cursor Database" = "Compact Cursor Database";
+"VACUUMs state.vscdb, reclaiming space from a known chat-history bloat bug. No data is lost." = "VACUUMs state.vscdb, reclaiming space from a known chat-history bloat bug. No data is lost.";
+"Quit Cursor first to compact its database" = "Quit Cursor first to compact its database";
+"Freed %@" = "Freed %@";
+"Scanning…" = "Scanning…";
+"Reclaimable: %@" = "Reclaimable: %@";
+"Tap to Confirm" = "Tap to Confirm";
+"Clean Now" = "Clean Now";
+"Cyclop needs Full Disk Access to clean system caches" = "Cyclop needs Full Disk Access to clean system caches";
+"Quit and reopen Cyclop after granting access." = "Quit and reopen Cyclop after granting access.";
+"Open Full Disk Access Settings" = "Open Full Disk Access Settings";
+"Memory glow" = "Memory glow";
+"Also glow from RAM used" = "Also glow from RAM used";
+"Same graph as Activity Monitor." = "Same graph as Activity Monitor.";
+"Yellow after a short hold. Red is immediate." = "Yellow after a short hold. Red is immediate.";
+"Waiting — yellow if this holds." = "Waiting — yellow if this holds.";
+"Graph is yellow. Notch stays dark until red." = "Graph is yellow. Notch stays dark until red.";
+"Notch stays dark until red." = "Notch stays dark until red.";
+"Preview glow" = "Preview glow";
+"Yellow at" = "Yellow at";
+"Red at" = "Red at";
+"Preview yellow" = "Preview yellow";
+"Preview red" = "Preview red";
+"Preview meeting" = "Preview meeting";
+"Jetsam" = "Pressure";

@@ -1,5 +1,4 @@
 import Foundation
-import Security
 
 /// One rolling limit window — Claude Code tracks a five-hour and a seven-day
 /// one side by side.
@@ -56,8 +55,8 @@ final class ClaudeUsageStore: ObservableObject {
     /// endpoint; short enough that a number just spent shows up promptly.
     private static let minRefetchInterval: TimeInterval = 20
 
-    func reload() {
-        if let lastFetch, Date().timeIntervalSince(lastFetch) < Self.minRefetchInterval { return }
+    func reload(force: Bool = false) {
+        if !force, let lastFetch, Date().timeIntervalSince(lastFetch) < Self.minRefetchInterval { return }
         lastFetch = Date()
         Task { await fetch() }
     }
@@ -68,37 +67,45 @@ final class ClaudeUsageStore: ObservableObject {
             unreachable = false
             return
         }
-        guard let fresh = await Self.fetchLive(token: token) else {
-            unreachable = true
+        if let fresh = await Self.fetchLive(token: token) {
+            snapshot = fresh
             noCredentials = false
+            unreachable = false
             return
         }
-        snapshot = fresh
+        UsageTokenCache.clearClaude()
+        if let retry = Self.token(), retry != token,
+           let fresh = await Self.fetchLive(token: retry) {
+            snapshot = fresh
+            noCredentials = false
+            unreachable = false
+            return
+        }
+        unreachable = true
         noCredentials = false
-        unreachable = false
     }
 
-    /// `security find-generic-password`'s own target, read straight from the
-    /// Keychain API instead of shelling out to it. Falls back to the plain
-    /// file Claude Code writes when Keychain has nothing — some installs use
-    /// one, some the other.
+    /// Claude Code's file first (no dialog), then a silent Keychain read,
+    /// then Cyclop's own cache, then one prompt that is cached afterwards.
     private static func token() -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: "Claude Code-credentials",
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        var item: CFTypeRef?
-        if SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
-           let data = item as? Data,
-           let token = extractAccessToken(data) {
+        let file = FileManager.default.homeDirectoryForCurrentUser
+            .appending(path: ".claude/.credentials.json")
+        if let data = try? Data(contentsOf: file), let token = extractAccessToken(data) {
+            UsageTokenCache.storeClaude(token)
             return token
         }
-        let credentialsFile = FileManager.default.homeDirectoryForCurrentUser
-            .appending(path: ".claude/.credentials.json")
-        guard let data = try? Data(contentsOf: credentialsFile) else { return nil }
-        return extractAccessToken(data)
+        if let data = UsageTokenCache.keychain(service: "Claude Code-credentials", allowPrompt: false),
+           let token = extractAccessToken(data) {
+            UsageTokenCache.storeClaude(token)
+            return token
+        }
+        if let cached = UsageTokenCache.claude { return cached }
+        if let data = UsageTokenCache.keychain(service: "Claude Code-credentials", allowPrompt: true),
+           let token = extractAccessToken(data) {
+            UsageTokenCache.storeClaude(token)
+            return token
+        }
+        return nil
     }
 
     private static func extractAccessToken(_ data: Data) -> String? {

@@ -1,5 +1,4 @@
 import Foundation
-import Security
 
 /// Cursor's dashboard splits the billing cycle into two pools — "Cursor
 /// Models" (its own, cheaper models) and "Other Models" (everything else,
@@ -44,8 +43,8 @@ final class CursorUsageStore: ObservableObject {
     private var lastFetch: Date?
     private static let minRefetchInterval: TimeInterval = 20
 
-    func reload() {
-        if let lastFetch, Date().timeIntervalSince(lastFetch) < Self.minRefetchInterval { return }
+    func reload(force: Bool = false) {
+        if !force, let lastFetch, Date().timeIntervalSince(lastFetch) < Self.minRefetchInterval { return }
         lastFetch = Date()
         Task { await fetch() }
     }
@@ -56,28 +55,43 @@ final class CursorUsageStore: ObservableObject {
             unreachable = false
             return
         }
-        guard let fresh = await Self.fetchLive(token: token) else {
-            unreachable = true
+        if let fresh = await Self.fetchLive(token: token) {
+            snapshot = fresh
             noCredentials = false
+            unreachable = false
             return
         }
-        snapshot = fresh
+        UsageTokenCache.clearCursor()
+        if let retry = Self.token(), retry != token,
+           let fresh = await Self.fetchLive(token: retry) {
+            snapshot = fresh
+            noCredentials = false
+            unreachable = false
+            return
+        }
+        unreachable = true
         noCredentials = false
-        unreachable = false
     }
 
     private static func token() -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: "cursor-access-token",
-            kSecAttrAccount as String: "cursor-user",
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
-              let data = item as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
+        if let data = UsageTokenCache.keychain(
+            service: "cursor-access-token",
+            account: "cursor-user",
+            allowPrompt: false
+        ), let token = String(data: data, encoding: .utf8), !token.isEmpty {
+            UsageTokenCache.storeCursor(token)
+            return token
+        }
+        if let cached = UsageTokenCache.cursor { return cached }
+        if let data = UsageTokenCache.keychain(
+            service: "cursor-access-token",
+            account: "cursor-user",
+            allowPrompt: true
+        ), let token = String(data: data, encoding: .utf8), !token.isEmpty {
+            UsageTokenCache.storeCursor(token)
+            return token
+        }
+        return nil
     }
 
     private static func fetchLive(token: String) async -> CursorUsageResponse? {

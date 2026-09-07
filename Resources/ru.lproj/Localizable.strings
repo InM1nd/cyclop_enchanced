@@ -12,6 +12,9 @@
 
 /* Меню-бар */
 "Open Panel" = "Открыть панель";
+"Settings…" = "Настройки…";
+"All Settings…" = "Все настройки…";
+"Notch glows only when the graph is red." = "Notch загорается только когда график красный.";
 "Quit" = "Выйти";
 
 /* Вкладка настроек */
@@ -24,6 +27,7 @@
 "Clear Screenshots Folder" = "Очистить папку снимков";
 "Clear Screenshots Folder (%@)" = "Очистить папку снимков (%@)";
 "Show Snippets File" = "Показать файл заготовок";
+"No usage cards enabled — turn some on in Settings" = "Нет карточек лимитов — включите их в Настройках";
 
 /* Полка */
 "Selected: %d" = "Выбрано: %d";
@@ -133,3 +137,54 @@
 "Skip" = "Пропуск";
 "Focus done — time for a break" = "Фокус закончен — пора на перерыв";
 "Break over — back to focus" = "Перерыв окончен — обратно к фокусу";
+
+/* Память: график давления как в «Активности», плюс очистка кэшей. */
+"Memory" = "Память";
+"Memory Pressure · Green" = "Давление памяти · зелёный";
+"Memory Pressure · Yellow" = "Давление памяти · жёлтый";
+"Memory Pressure · Red" = "Давление памяти · красный";
+"Running optimally." = "Всё работает нормально.";
+"Close unneeded tabs and quit unused apps." = "Закройте лишние вкладки и неиспользуемые приложения.";
+"The Mac is swapping. Close tabs, then clean caches below." = "Мак выгружает память на диск. Закройте вкладки, затем почистите кэши ниже.";
+"Swap" = "Swap";
+"Disk free" = "Свободно на диске";
+"Starts in 10 min" = "Начало через 10 мин";
+"App & System Caches" = "Кэши приложений и системы";
+"Everything in ~/Library/Caches — every app rebuilds this from scratch." = "Всё в ~/Library/Caches — приложения соберут заново сами.";
+"npm Package Cache" = "Кэш пакетов npm";
+"~/.npm — npm re-downloads packages as needed." = "~/.npm — npm скачает пакеты снова, когда понадобятся.";
+"CLI Tool Cache" = "Кэш CLI-инструментов";
+"~/.cache — shared cache folder used by many command-line dev tools." = "~/.cache — общий кэш многих консольных инструментов.";
+"pnpm Store" = "Хранилище pnpm";
+"Runs “pnpm store prune” to drop packages nothing references anymore." = "Запускает «pnpm store prune» — убирает пакеты, на которые никто не ссылается.";
+"Docker Unused Data" = "Неиспользуемые данные Docker";
+"Removes ALL unused images, containers, and volumes not currently in use — off by default, more destructive than the rest." = "Удаляет ВСЕ неиспользуемые образы, контейнеры и тома — по умолчанию выключено, жёстче остальных.";
+"App Cache Subfolders" = "Кэш-папки приложений";
+"Cache-style folders (Cache, GPUCache, Code Cache…) found anywhere under Application Support. Never touches saved app data." = "Папки вроде Cache, GPUCache, Code Cache в Application Support. Данные приложений не трогает.";
+"Cursor Database Backup" = "Резервная копия базы Cursor";
+"state.vscdb.backup — a leftover backup file, always safe to remove." = "state.vscdb.backup — лишний бэкап, его всегда безопасно удалить.";
+"Compact Cursor Database" = "Сжать базу Cursor";
+"VACUUMs state.vscdb, reclaiming space from a known chat-history bloat bug. No data is lost." = "VACUUM для state.vscdb — место от раздутой истории чатов. Данные не теряются.";
+"Quit Cursor first to compact its database" = "Сначала закройте Cursor, чтобы сжать его базу";
+"Freed %@" = "Освобождено %@";
+"Scanning…" = "Сканирование…";
+"Reclaimable: %@" = "Можно освободить: %@";
+"Tap to Confirm" = "Ещё раз для подтверждения";
+"Clean Now" = "Очистить";
+"Cyclop needs Full Disk Access to clean system caches" = "Cyclop нужен доступ к полному диску, чтобы чистить системные кэши";
+"Quit and reopen Cyclop after granting access." = "После выдачи доступа закройте Cyclop и откройте снова.";
+"Open Full Disk Access Settings" = "Открыть настройки полного диска";
+"Memory glow" = "Подсветка памяти";
+"Also glow from RAM used" = "Также от занятой RAM";
+"Same graph as Activity Monitor." = "Тот же график, что в «Активности».";
+"Yellow after a short hold. Red is immediate." = "Жёлтый после короткой паузы. Красный сразу.";
+"Waiting — yellow if this holds." = "Ждём — жёлтый, если не спадёт.";
+"Graph is yellow. Notch stays dark until red." = "График жёлтый. Notch загорится на красном.";
+"Notch stays dark until red." = "Notch загорится только на красном.";
+"Preview glow" = "Превью подсветки";
+"Yellow at" = "Жёлтый от";
+"Red at" = "Красный от";
+"Preview yellow" = "Превью жёлтого";
+"Preview red" = "Превью красного";
+"Preview meeting" = "Превью созвона";
+"Jetsam" = "Давление";

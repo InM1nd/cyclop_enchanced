@@ -1,22 +1,60 @@
 import SwiftUI
 
+private struct CardHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 struct CreditsPane: View {
     @ObservedObject var usage: ClaudeUsageStore
     @ObservedObject var codex: CodexUsageStore
     @ObservedObject var cursor: CursorUsageStore
+    @ObservedObject var providers: UsageProviderSettings
 
-    // Three cards of uneven depth: Claude carries the plan windows plus
-    // extra usage, so it owns the left column; Codex and Cursor share the
-    // right, each stretched to half the pane so the tops and bottoms line up.
+    /// Claude's extra-usage line makes it taller than the others; every card
+    /// is pinned to that height so the row is even.
+    @State private var cardHeight: CGFloat?
+
+    private var enabledProviders: [UsageProvider] { providers.enabled }
+    private var columns: Int { UsageGrid.columns(for: enabledProviders.count) }
+
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            cell { claudeContent }
-            VStack(spacing: 8) {
-                cell { codexContent }
-                cell { cursorContent }
+        Group {
+            if enabledProviders.isEmpty {
+                caption(localized("No usage cards enabled — turn some on in Settings"))
+            } else {
+                LazyVGrid(
+                    columns: Array(repeating: GridItem(.flexible(), spacing: UsageGrid.rowSpacing), count: columns),
+                    alignment: .leading,
+                    spacing: UsageGrid.rowSpacing
+                ) {
+                    ForEach(enabledProviders) { provider in
+                        cell { content(for: provider) }
+                            .frame(height: cardHeight)
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .onPreferenceChange(CardHeightKey.self) { if $0 > 0 { cardHeight = $0 } }
+        .onChange(of: enabledProviders.count) { _, _ in cardHeight = nil }
+        .onAppear {
+            usage.reload()
+            cursor.reload()
+            codex.reload()
+        }
+    }
+
+    @ViewBuilder
+    private func content(for provider: UsageProvider) -> some View {
+        switch provider {
+        case .claude: claudeContent
+        case .codex: codexContent
+        case .cursor: cursorContent
+        }
     }
 
     private func cell<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
@@ -25,7 +63,12 @@ struct CreditsPane: View {
             Spacer(minLength: 0)
         }
         .padding(10)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(
+            GeometryReader { proxy in
+                Color.clear.preference(key: CardHeightKey.self, value: proxy.size.height)
+            }
+        )
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Theme.surface)

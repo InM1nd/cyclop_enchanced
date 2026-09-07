@@ -41,6 +41,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         toggle.target = self
         menu.addItem(toggle)
 
+        let settings = NSMenuItem(
+            title: localized("Settings…"),
+            action: #selector(openSettings),
+            keyEquivalent: ","
+        )
+        settings.target = self
+        menu.addItem(settings)
+
         // Sits next to the panel switch rather than in the Settings tab: it
         // changes what the panel shows, and it is the one people look for in a
         // hurry, with the camera already running.
@@ -86,6 +94,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func togglePanel() {
         controller?.toggle()
+    }
+
+    @objc private func openSettings() {
+        controller?.openSettings()
     }
 
     /// Everything shown is re-read when the menu opens, not kept fresh in

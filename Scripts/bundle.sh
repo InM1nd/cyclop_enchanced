@@ -44,6 +44,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <string>Cyclop показывает ближайшие встречи и кнопку подключения к ним.</string>
     <key>NSCalendarsUsageDescription</key>
     <string>Cyclop показывает ближайшие встречи и кнопку подключения к ним.</string>
+    <key>NSUserNotificationsUsageDescription</key>
+    <string>Cyclop напоминает о созвоне за десять минут и о конце помодоро.</string>
     <key>NSHumanReadableCopyright</key><string>MIT License</string>
 </dict>
 </plist>

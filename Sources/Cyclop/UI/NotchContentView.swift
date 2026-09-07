@@ -15,7 +15,7 @@ struct NotchContentView: View {
             bottomRadius: isOpen ? Theme.openBottomRadius : Theme.collapsedBottomRadius
         )
         let shapeWidth = size.width + 2 * topRadius
-        let rim = isOpen ? nil : Self.rimColor(for: vm.pomodoro.collapsedRimPhase)
+        let rim = (isOpen && vm.rimPreview == .none) ? nil : Self.rimColor(for: vm.collapsedRim)
         // Collapsed, paint a hair past the reported notch: `auxiliaryTop*Area`
         // width is occasionally a point shy of the cutout the eye reads, and a
         // stroke on that tight box looked biased to one side.
@@ -66,17 +66,29 @@ struct NotchContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .animation(Theme.openAnimation, value: isOpen)
         .animation(Theme.paneAnimation, value: vm.tab)
-        .animation(.easeInOut(duration: 0.35), value: vm.pomodoro.collapsedRimPhase)
+        .animation(.easeInOut(duration: 0.35), value: vm.collapsedRim)
     }
 
-    /// Coral while focusing, mint on a short break, blue on a long one —
-    /// readable at a glance from across the desk.
-    private static func rimColor(for phase: PomodoroStore.Phase?) -> Color? {
-        switch phase {
-        case .work: return Color(red: 1.0, green: 0.38, blue: 0.32)
-        case .shortBreak: return Color(red: 0.35, green: 0.82, blue: 0.55)
-        case .longBreak: return Color(red: 0.40, green: 0.62, blue: 1.0)
-        case nil: return nil
+    /// Meeting neon, then memory yellow/red, then pomodoro. Green memory
+    /// is silence — the island stays black, same as Activity Monitor's
+    /// "everything is fine".
+    private static func rimColor(for rim: NotchViewModel.CollapsedRim) -> Color? {
+        switch rim {
+        case .none:
+            return nil
+        case .meeting(let pulsing):
+            let neon = Color(red: 0.45, green: 0.85, blue: 1.0)
+            return pulsing ? neon : neon.opacity(0.55)
+        case .memoryWarn:
+            return Color(red: 1.0, green: 0.78, blue: 0.20)
+        case .memoryCritical:
+            return Color(red: 1.0, green: 0.35, blue: 0.32)
+        case .pomodoro(.work):
+            return Color(red: 1.0, green: 0.38, blue: 0.32)
+        case .pomodoro(.shortBreak):
+            return Color(red: 0.35, green: 0.82, blue: 0.55)
+        case .pomodoro(.longBreak):
+            return Color(red: 0.40, green: 0.62, blue: 1.0)
         }
     }
 
@@ -149,6 +161,10 @@ struct NotchContentView: View {
             Text(vm.pomodoro.clock)
                 .font(.system(size: 10, weight: .medium).monospacedDigit())
                 .foregroundStyle(vm.pomodoro.isRunning ? Color.white.opacity(0.8) : Theme.tertiary)
+        case .memory:
+            Circle()
+                .fill(MemoryPane.color(for: vm.memory.level))
+                .frame(width: 7, height: 7)
         case .settings:
             EmptyView()
         }
@@ -217,11 +233,23 @@ struct NotchContentView: View {
         case .teleprompter:
             TeleprompterPane(prompter: vm.teleprompter, wantsKeyboard: $vm.wantsKeyboard)
         case .credits:
-            CreditsPane(usage: vm.usage, codex: vm.codex, cursor: vm.cursor)
+            CreditsPane(usage: vm.usage, codex: vm.codex, cursor: vm.cursor, providers: vm.usageProviders)
         case .pomodoro:
             PomodoroPane(pomodoro: vm.pomodoro)
+        case .memory:
+            MemoryPane(memory: vm.memory, cleanup: vm.cleanup)
         case .settings:
-            SettingsPane(shelf: vm.shelf, sleepManager: vm.sleepManager)
+            SettingsPane(
+                shelf: vm.shelf,
+                sleepManager: vm.sleepManager,
+                memory: vm.memory,
+                usageProviders: vm.usageProviders,
+                compact: true,
+                onOpenFull: { vm.onOpenFullSettings?() },
+                onPreviewYellow: { vm.previewMemoryWarn() },
+                onPreviewRed: { vm.previewMemoryCritical() },
+                onPreviewMeeting: { vm.previewMeeting() }
+            )
         }
     }
 }
@@ -268,7 +296,7 @@ private struct Rail: View {
                 } label: {
                     Image(systemName: tab.symbol)
                         .font(.system(size: 12, weight: .medium))
-                        .frame(width: 30, height: vm.geometry.railIconHeight)
+                        .frame(width: 30, height: vm.geometry.railIconHeight(forIconCount: NotchViewModel.Tab.leftRail.count))
                         .background(
                             RoundedRectangle(cornerRadius: 7, style: .continuous)
                                 .fill(fill(for: tab))

@@ -38,17 +38,32 @@ struct NotchGeometry {
         CGSize(width: expandedSize.width, height: Self.tallBodyHeight)
     }
 
-    /// Body for the usage tab: two rows of cards need more headroom than a
-    /// list does, short of the teleprompter's full paragraph.
-    static let creditsBodyHeight: CGFloat = 330
-    var creditsExpandedSize: CGSize {
-        CGSize(width: expandedSize.width, height: Self.creditsBodyHeight)
+    /// One Usage card row — Claude's extra-usage line is the tallest.
+    static let creditsRowHeight: CGFloat = 165
+    /// Header plus padding under the grid. 400 = chrome + 2×165 + 1×8.
+    static let creditsChrome: CGFloat = tallBodyHeight - 2 * creditsRowHeight - UsageGrid.rowSpacing
+    /// Memory / Settings — cleanup list needs this much, short of teleprompter.
+    static let toolsBodyHeight: CGFloat = 330
+
+    func creditsBodyHeight(forRows rows: Int) -> CGFloat {
+        let rows = max(rows, 1)
+        let height = Self.creditsChrome + CGFloat(rows) * Self.creditsRowHeight
+            + CGFloat(rows - 1) * UsageGrid.rowSpacing
+        return min(height, Self.tallBodyHeight)
+    }
+
+    func creditsExpandedSize(forRows rows: Int) -> CGSize {
+        CGSize(width: expandedSize.width, height: creditsBodyHeight(forRows: rows))
+    }
+
+    var toolsExpandedSize: CGSize {
+        CGSize(width: expandedSize.width, height: Self.toolsBodyHeight)
     }
 
     /// Tallest body any tab can ask for. The window is cut to this once and
     /// never resized: it is transparent outside the visible panel, and what is
     /// clickable is decided separately by the active rect.
-    var maxBodyHeight: CGFloat { max(expandedSize.height, Self.tallBodyHeight, Self.creditsBodyHeight) }
+    var maxBodyHeight: CGFloat { max(expandedSize.height, Self.tallBodyHeight, Self.toolsBodyHeight) }
 
     /// What the body has left for content on an ordinary tab, once the header
     /// and the padding beneath are taken out.
@@ -70,8 +85,8 @@ struct NotchGeometry {
     /// Rounded down rather than to the nearest point: a rail that asks for
     /// more than it is given should visibly yield, not overflow by a
     /// fraction that clips it.
-    var railIconHeight: CGFloat {
-        let icons = CGFloat(NotchViewModel.Tab.leftRail.count)
+    func railIconHeight(forIconCount count: Int) -> CGFloat {
+        let icons = CGFloat(max(count, 1))
         let available = expandedSize.height - notchSize.height - Self.bodyBottomPadding
         let ceiling = (available - (icons - 1) * Self.railSpacing) / icons
         return min(24, ceiling).rounded(.down)
