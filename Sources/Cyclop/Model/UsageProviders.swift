@@ -32,22 +32,6 @@ enum UsageProvider: String, CaseIterable, Identifiable {
 /// both need the same row count to agree, or the panel and the grid drift
 /// apart. rows = ⌊√n⌋, cols = ⌈n/rows⌉: 3 → 1×3, 4 → 2×2, 6 → 2×3, width
 /// grows before height does, since the panel has more of that to give.
-enum UsageGrid {
-    /// Gap between cards, both across and down — `CreditsPane`'s `LazyVGrid`
-    /// spacing, mirrored here so the window's body-height math agrees with it.
-    static let rowSpacing: CGFloat = 8
-
-    static func rows(for count: Int) -> Int {
-        guard count > 1 else { return max(count, 1) }
-        return max(Int(Double(count).squareRoot()), 1)
-    }
-
-    static func columns(for count: Int) -> Int {
-        guard count > 0 else { return 1 }
-        return Int((Double(count) / Double(rows(for: count))).rounded(.up))
-    }
-}
-
 /// Which brand cards show on the Usage tab. A separate on/off set from
 /// `TabModules`: hiding the whole Usage tab and hiding one card inside it
 /// are different questions, so they get different storage.
