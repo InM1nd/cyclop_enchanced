@@ -33,8 +33,16 @@ final class Translator: ObservableObject {
     /// The failure is a missing language pack, which is a thing the user can
     /// go and fix — so the pane offers the button that takes them there.
     @Published private(set) var needsDownload = false
+    /// True while `prepareTranslation()` is waiting on the system's own
+    /// download sheet — shown so a click that takes a few seconds to answer
+    /// does not look like nothing happened.
+    @Published private(set) var isDownloading = false
 
     private var attempt = 0
+    /// Set by `requestDownload()`, consumed by the next `run(_:)`. One-shot
+    /// because the download prompt is only ever the user's own click — see
+    /// the comment on `run(_:)` for why it cannot be automatic.
+    private var pendingDownload = false
 
     var request: Request { Request(text: input, attempt: attempt) }
     var trimmed: String { input.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -56,6 +64,20 @@ final class Translator: ObservableObject {
         attempt += 1
     }
 
+    /// Asks macOS to download the missing language pack, right from the
+    /// button that told the user it was missing.
+    ///
+    /// `prepareTranslation()` blocks on a system sheet, and that sheet needs
+    /// a foreground app to appear over — this panel stays background even
+    /// while it holds the keyboard (`.nonactivatingPanel`), which is why a
+    /// silent attempt from `run(_:)` used to hang forever. Activating first,
+    /// and only on the user's own click, gives the sheet somewhere to land
+    /// without turning every open of this tab into a surprise Dock icon.
+    func requestDownload() {
+        pendingDownload = true
+        retry()
+    }
+
     func clear() {
         output = ""
         failure = nil
@@ -72,12 +94,26 @@ final class Translator: ObservableObject {
         guard !text.isEmpty else { clear(); return }
         guard let source = session.sourceLanguage, let target = session.targetLanguage else { return }
 
-        // No language pack ships installed. `prepareTranslation()` is what asks
-        // for one, but it blocks until its system prompt is answered — and that
-        // prompt has nowhere to appear over a borderless panel of an app that
-        // never activates, so it would hang forever. Check instead, and send
-        // the user to the one place that can actually install it.
-        let status = await LanguageAvailability().status(from: source, to: target)
+        var status = await LanguageAvailability().status(from: source, to: target)
+
+        // Only reached from the pane's "Download" button, never on its own —
+        // see `requestDownload()`. A 20 s cap means a sheet that never gets
+        // answered leaves the tab usable again instead of stuck loading.
+        if status == .supported, pendingDownload {
+            pendingDownload = false
+            NSApp.activate(ignoringOtherApps: true)
+            isDownloading = true
+            _ = await withTaskGroup(of: Void.self) { group in
+                group.addTask { try? await session.prepareTranslation() }
+                group.addTask { try? await Task.sleep(for: .seconds(20)) }
+                await group.next()
+                group.cancelAll()
+            }
+            isDownloading = false
+            guard !Task.isCancelled else { return }
+            status = await LanguageAvailability().status(from: source, to: target)
+        }
+
         guard status == .installed else {
             output = ""
             needsDownload = status == .supported

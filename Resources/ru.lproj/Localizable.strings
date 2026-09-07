@@ -8,6 +8,9 @@
 "Snippets" = "Заготовки";
 "Calendar" = "Календарь";
 "Translate" = "Перевод";
+"Pomodoro" = "Помодоро";
+"Memory" = "Память";
+"Colors" = "Цвета";
 "Settings" = "Настройки";
 
 /* Меню-бар */
@@ -15,10 +18,21 @@
 "Settings…" = "Настройки…";
 "All Settings…" = "Все настройки…";
 "Notch glows only when the graph is red." = "Notch загорается только когда график красный.";
+"Idle Screen" = "Экран простоя";
+"Agents" = "Агенты";
+"Matrix" = "Матрица";
+"Life" = "Жизнь";
+"Stars" = "Звёзды";
+"Portrait" = "Портрет";
+"Color" = "Цвет";
 "Quit" = "Выйти";
 
 /* Вкладка настроек */
 "General" = "Общее";
+"Modules" = "Модули";
+"Work" = "Работа";
+"Call" = "Звонок";
+"Minimal" = "Минимум";
 "Launch at Login" = "Запускать при входе";
 "Keep Awake with Lid Closed" = "Не спать с закрытой крышкой";
 "Screenshots" = "Скриншоты";
@@ -52,12 +66,22 @@
 /* Заметки */
 "Notes" = "Заметки";
 "New Note" = "Новая заметка";
+"New Todo List" = "Новый туду-лист";
 "Empty note" = "Пустая заметка";
+"Empty todo list" = "Пустой туду-лист";
 "Jot something down…" = "Набросай что-нибудь…";
+"What needs doing…" = "Что нужно сделать…";
+"Add item" = "Добавить пункт";
+"Convert to Todo List" = "Превратить в туду-лист";
+"Convert to Note" = "Превратить в заметку";
+"Pin" = "Закрепить";
+"Unpin" = "Открепить";
 
 /* Перевод */
 "Translation Languages…" = "Языки перевода…";
 "Retry" = "Повторить";
+"Download" = "Скачать";
+"Downloading the language pack…" = "Скачивается языковой пакет…";
 "The %@ → %@ language pack is not installed." = "Не скачан языковой пакет %@ → %@.";
 "macOS does not translate this pair of languages." = "macOS не переводит эту пару языков.";
 
@@ -81,11 +105,17 @@
    не полное слово с падежом, а сокращение не склоняется ни в каком языке. */
 "now" = "идёт сейчас";
 "any moment" = "вот-вот";
+"today" = "сегодня";
 "tomorrow" = "завтра";
+"Today" = "Сегодня";
+"Tomorrow" = "Завтра";
 "in %d min" = "через %d мин";
 "in %d h" = "через %d ч";
 "in %d h %d min" = "через %d ч %d мин";
 "in %d d" = "через %d дн";
+"leave now" = "выходи сейчас";
+"leave in %d min" = "выходи через %d мин";
+"leave at %@" = "выходи в %@";
 
 /* Сохранённые снимки. Ключ — сам формат даты, чтобы язык мог переставить части
    в своём порядке. */
@@ -123,6 +153,20 @@
 "Other Models" = "Другие модели";
 "Not signed in to Cursor" = "Не авторизовано в Cursor";
 "Can't reach Cursor" = "Не удаётся связаться с Cursor";
+
+/* OpenCode: окна лимитов плана Go, получаются живьём по ключу, который CLI
+   OpenCode хранит в ~/.local/share/opencode/auth.json. Без плана карточка
+   показывает токены и расход, зеркаленные из opencode.db. */
+"Weekly window" = "Недельное окно";
+"Monthly window" = "Месячное окно";
+"Not signed in to OpenCode" = "Не авторизовано в OpenCode";
+"Can't reach OpenCode" = "Не удаётся связаться с OpenCode";
+"This month" = "В этом месяце";
+"Cost" = "Стоимость";
+"No OpenCode sessions found yet" = "Пока нет сессий OpenCode";
+
+/* Вкладка Usage: сетка, когда все карточки выключены в настройках. */
+"No usage cards enabled — turn some on in Settings" = "Все карточки выключены — включите нужные в настройках";
 
 /* Помодоро */
 "Pomodoro" = "Помодоро";
@@ -188,3 +232,10 @@
 "Preview red" = "Превью красного";
 "Preview meeting" = "Превью созвона";
 "Jetsam" = "Давление";
+
+/* Color picker */
+"Pick a colour from the screen" = "Возьми цвет с экрана";
+"It copies as HEX automatically" = "Сразу копируется как HEX";
+"Pick from Screen" = "Пипетка";
+"Copied" = "Скопировано";
+

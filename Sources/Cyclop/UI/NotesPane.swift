@@ -8,6 +8,7 @@ struct NotesPane: View {
     @Binding var wantsKeyboard: Bool
 
     @FocusState private var focused: Bool
+    @FocusState private var focusedItem: ChecklistItem.ID?
 
     /// Per note, like the rows in the other tabs. A curtain over the whole tab
     /// would also cover the only thing here that is not the text — which note
@@ -17,6 +18,11 @@ struct NotesPane: View {
     private var selectedHidden: Bool {
         guard let id = notes.selected else { return false }
         return hidden(id)
+    }
+
+    private var selectedNote: Note? {
+        guard let id = notes.selected else { return nil }
+        return notes.notes.first(where: { $0.id == id })
     }
 
     var body: some View {
@@ -30,17 +36,22 @@ struct NotesPane: View {
         // slower than the editor window this tab exists to replace.
         .onAppear {
             if notes.notes.isEmpty {
-                notes.add()
-                // Same deal as the + button below: a note born under the caret
-                // is being written by the one person looking at it. Covered,
-                // it would arrive with the editor disabled — a focused field
-                // that eats no keys, on the tab that exists to be typed into.
-                if let id = notes.selected { privacy.reveal("note.\(id)") }
+                create(checklist: false)
             } else if notes.selected == nil {
                 notes.selected = notes.notes.first?.id
             }
         }
-        .onChange(of: wantsKeyboard) { _, wants in focused = wants }
+        .onChange(of: wantsKeyboard) { _, wants in
+            focused = wants
+            if wants, let note = selectedNote, note.isChecklist {
+                focusedItem = note.items.first?.id
+            }
+        }
+        .onChange(of: notes.selected) { _, _ in
+            if let note = selectedNote, note.isChecklist {
+                focusedItem = note.items.first?.id
+            }
+        }
     }
 
     /// What lies over the editor while the chosen note is covered. The editor
@@ -72,35 +83,28 @@ struct NotesPane: View {
 
     private var list: some View {
         VStack(spacing: 3) {
-            Button {
-                notes.add()
-                // A note created by hand is uncovered from the start: it is
-                // being written this second, by the person looking at it, and
-                // asking them to uncover their own blank page before typing
-                // into it would be a riddle, not a precaution.
-                if let id = notes.selected { privacy.reveal("note.\(id)") }
-                focused = true
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 10, weight: .semibold))
-                    Text("New Note")
-                        .font(.system(size: 11, weight: .medium))
+            HStack(spacing: 3) {
+                addButton(title: localized("New Note"), checklist: false)
+                Button {
+                    create(checklist: true)
+                } label: {
+                    Image(systemName: "checklist")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Theme.secondary)
+                        .frame(width: 28, height: 24)
+                        .background(
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .fill(Theme.surface)
+                        )
+                        .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                 }
-                .foregroundStyle(Theme.secondary)
-                .frame(maxWidth: .infinity)
-                .frame(height: 24)
-                .background(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(Theme.surface)
-                )
-                .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .buttonStyle(.plain)
+                .help(localized("New Todo List"))
             }
-            .buttonStyle(.plain)
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 3) {
-                    ForEach(notes.notes) { note in
+                    ForEach(notes.ordered) { note in
                         NoteRow(
                             note: note,
                             isSelected: notes.selected == note.id,
@@ -110,7 +114,11 @@ struct NotesPane: View {
                             select: {
                                 notes.selected = note.id
                                 focused = true
+                                if note.isChecklist {
+                                    focusedItem = note.items.first?.id
+                                }
                             },
+                            pin: { notes.togglePin(note.id) },
                             delete: {
                                 notes.remove(note.id)
                                 // The tab's invariant: there is always a note
@@ -126,11 +134,45 @@ struct NotesPane: View {
         .frame(width: 170)
     }
 
+    private func addButton(title: String, checklist: Bool) -> some View {
+        Button {
+            create(checklist: checklist)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "plus")
+                    .font(.system(size: 10, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .foregroundStyle(Theme.secondary)
+            .frame(maxWidth: .infinity)
+            .frame(height: 24)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(Theme.surface)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func create(checklist: Bool) {
+        notes.add(checklist: checklist)
+        // A note created by hand is uncovered from the start: it is being
+        // written this second, by the person looking at it, and asking them
+        // to uncover their own blank page before typing into it would be a
+        // riddle, not a precaution.
+        if let id = notes.selected { privacy.reveal("note.\(id)") }
+        focused = true
+        if checklist, let item = notes.notes.first?.items.first {
+            focusedItem = item.id
+        }
+    }
+
     // MARK: - Editor
 
     private var currentText: String {
-        guard let id = notes.selected else { return "" }
-        return notes.notes.first(where: { $0.id == id })?.text ?? ""
+        selectedNote?.text ?? ""
     }
 
     private var editorBinding: Binding<String> {
@@ -143,60 +185,13 @@ struct NotesPane: View {
         )
     }
 
+    @ViewBuilder
     private var editor: some View {
         ZStack(alignment: .topLeading) {
-            TextEditor(text: editorBinding)
-                .textEditorStyle(.plain)
-                .scrollContentBackground(.hidden)
-                .scrollIndicators(.hidden)
-                .font(.system(size: 12.5))
-                .foregroundStyle(.white)
-                .tint(Theme.secondary)
-                .focused($focused)
-                // The editor insets its text by a few points of its own; pull
-                // that back so the first character lines up with the padding.
-                .padding(.leading, -5)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                // One editor for all notes, deliberately NOT remounted per
-                // note. A remount (`.id(selected)`) tears the focused view
-                // down, and SwiftUI's cleanup for "the focused view
-                // disappeared" clears the FocusState at a moment of its own
-                // choosing — racing, and regularly beating, every way of
-                // re-requesting focus: a plain set, a deferred set, even
-                // `defaultFocus`. All three were tried; the new note kept
-                // arriving without a caret. With one long-lived editor the
-                // text swaps inside a view that never dies, so there is no
-                // cleanup and nothing to race. AppKit clamps the caret to the
-                // new text's length — for a fresh note that is position zero,
-                // exactly where it belongs.
-                //
-                // A shared undo stack looked like the price of this, but
-                // measurement says otherwise: ⌘Z undoes typing fine within a
-                // note, and after switching notes the old actions are simply
-                // inert — deleted text does not resurface in the neighbour,
-                // in either note, on any press. The programmatic text swap
-                // leaves the stale actions unable to apply. Verified by
-                // driving the real app: type, delete, switch, ⌘Z twice,
-                // read the store after each step.
-                //
-                // Asked in onAppear because on arrival at the tab the request
-                // must come from a view that exists (see SnippetsPane).
-                .onAppear {
-                    DispatchQueue.main.async { focused = wantsKeyboard }
-                }
-                .onKeyPress(.escape) {
-                    // Esc hands the keyboard back, and only that. It never
-                    // clears: this pane holds the one kind of text that cannot
-                    // be re-derived from anywhere.
-                    wantsKeyboard = false
-                    return .handled
-                }
-
-            if currentText.isEmpty {
-                Text("Jot something down…")
-                    .font(.system(size: 12.5))
-                    .foregroundStyle(Theme.tertiary)
-                    .allowsHitTesting(false)
+            if let note = selectedNote, note.isChecklist {
+                checklistEditor(for: note)
+            } else {
+                plainEditor
             }
         }
         // Covered, the editor is faded out and switched off rather than taken
@@ -215,8 +210,30 @@ struct NotesPane: View {
         // way a covered row in the other tabs does. Using what is hidden must
         // not require showing it first.
         .overlay(alignment: .topTrailing) {
-            if !currentText.isEmpty {
-                CopyNoteButton(text: currentText)
+            HStack(spacing: 6) {
+                if let note = selectedNote {
+                    Button {
+                        notes.setChecklist(note.id, !note.isChecklist)
+                        if !note.isChecklist {
+                            DispatchQueue.main.async {
+                                focusedItem = notes.notes.first(where: { $0.id == note.id })?.items.first?.id
+                            }
+                        } else {
+                            focused = true
+                        }
+                    } label: {
+                        Image(systemName: note.isChecklist ? "checklist" : "text.alignleft")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(note.isChecklist ? .white : Theme.secondary)
+                            .frame(width: 22, height: 22)
+                            .background(Circle().fill(note.isChecklist ? Theme.surfaceHover : Theme.surface))
+                    }
+                    .buttonStyle(.plain)
+                    .help(localized(note.isChecklist ? "Convert to Note" : "Convert to Todo List"))
+                }
+                if let note = selectedNote, !note.copyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    CopyNoteButton(text: note.copyText)
+                }
             }
         }
         .padding(10)
@@ -225,7 +242,140 @@ struct NotesPane: View {
                 .fill(Theme.surface)
         )
     }
+
+    private var plainEditor: some View {
+        ZStack(alignment: .topLeading) {
+            TextEditor(text: editorBinding)
+                .textEditorStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .scrollIndicators(.hidden)
+                .font(.system(size: 12.5))
+                .foregroundStyle(.white)
+                .tint(Theme.secondary)
+                .focused($focused)
+                // The editor insets its text by a few points of its own; pull
+                // that back so the first character lines up with the padding.
+                .padding(.leading, -5)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                // One editor for all notes, deliberately NOT remounted per
+                // note. A remount (`.id(selected)`) tears the focused view
+                // down, and SwiftUI's cleanup for "the focused view
+                // disappeared" clears the FocusState at a moment of its own
+                // choosing — racing, and regularly beating, every way of
+                // re-requesting focus. With one long-lived editor the text
+                // swaps inside a view that never dies.
+                .onAppear {
+                    DispatchQueue.main.async { focused = wantsKeyboard }
+                }
+                .onKeyPress(.escape) {
+                    wantsKeyboard = false
+                    return .handled
+                }
+
+            if currentText.isEmpty {
+                Text(localized("Jot something down…"))
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(Theme.tertiary)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+
+    private func checklistEditor(for note: Note) -> some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(note.items) { item in
+                    ChecklistRow(
+                        item: item,
+                        text: Binding(
+                            get: {
+                                notes.notes
+                                    .first(where: { $0.id == note.id })?
+                                    .items.first(where: { $0.id == item.id })?
+                                    .text ?? ""
+                            },
+                            set: { notes.updateItem(note.id, itemID: item.id, text: $0) }
+                        ),
+                        toggle: { notes.toggleItem(note.id, itemID: item.id) },
+                        onSubmit: {
+                            if let newID = notes.addItem(note.id, after: item.id) {
+                                focusedItem = newID
+                            }
+                        },
+                        onBackspaceEmpty: {
+                            let items = notes.notes.first(where: { $0.id == note.id })?.items ?? []
+                            guard items.count > 1 else { return }
+                            let index = items.firstIndex(where: { $0.id == item.id }) ?? 0
+                            let previous = index > 0 ? items[index - 1].id : items.first?.id
+                            notes.removeItem(note.id, itemID: item.id)
+                            focusedItem = previous
+                        }
+                    )
+                    .focused($focusedItem, equals: item.id)
+                }
+
+                Button {
+                    if let newID = notes.addItem(note.id) {
+                        focusedItem = newID
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 9, weight: .semibold))
+                        Text(localized("Add item"))
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundStyle(Theme.tertiary)
+                    .padding(.leading, 2)
+                    .padding(.top, 4)
+                }
+                .buttonStyle(.plain)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onKeyPress(.escape) {
+            wantsKeyboard = false
+            return .handled
+        }
+    }
 }
+
+// MARK: - Checklist row
+
+private struct ChecklistRow: View {
+    let item: ChecklistItem
+    @Binding var text: String
+    let toggle: () -> Void
+    let onSubmit: () -> Void
+    let onBackspaceEmpty: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button(action: toggle) {
+                Image(systemName: item.done ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(item.done ? .white.opacity(0.75) : Theme.secondary)
+            }
+            .buttonStyle(.plain)
+
+            TextField("", text: $text, prompt: Text(localized("What needs doing…")).foregroundStyle(Theme.tertiary))
+                .textFieldStyle(.plain)
+                .font(.system(size: 12.5))
+                .foregroundStyle(item.done ? Theme.tertiary : .white)
+                .strikethrough(item.done, color: Theme.tertiary)
+                .onSubmit(onSubmit)
+                .onKeyPress(.delete) {
+                    guard text.isEmpty else { return .ignored }
+                    onBackspaceEmpty()
+                    return .handled
+                }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+// MARK: - Sidebar row
 
 private struct NoteRow: View {
     let note: Note
@@ -234,6 +384,7 @@ private struct NoteRow: View {
     let showsEye: Bool
     let toggleReveal: () -> Void
     let select: () -> Void
+    let pin: () -> Void
     let delete: () -> Void
 
     @State private var hovering = false
@@ -252,6 +403,13 @@ private struct NoteRow: View {
 
     var body: some View {
         HStack(spacing: 6) {
+            if note.isChecklist {
+                Image(systemName: "checklist")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(isSelected ? Theme.secondary : Theme.tertiary)
+                    .frame(width: 12)
+            }
+
             if hidden {
                 Text(Self.clock.string(from: note.edited))
                     .font(.system(size: 10, weight: .medium).monospacedDigit())
@@ -276,8 +434,22 @@ private struct NoteRow: View {
                     .truncationMode(.tail)
             }
             Spacer(minLength: 4)
+            if let progress = note.checklistProgress, !hidden {
+                Text("\(progress.done)/\(progress.total)")
+                    .font(.system(size: 9, weight: .medium).monospacedDigit())
+                    .foregroundStyle(Theme.tertiary)
+            }
             if hovering, showsEye {
                 RevealEye(hidden: hidden, action: toggleReveal)
+            }
+            if hovering || note.pinned {
+                Button(action: pin) {
+                    Image(systemName: note.pinned ? "pin.fill" : "pin")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(note.pinned ? Color.white.opacity(0.85) : Theme.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(localized(note.pinned ? "Unpin" : "Pin"))
             }
             if hovering {
                 Button(action: delete) {
@@ -304,10 +476,11 @@ private struct NoteRow: View {
     /// The first line stands in for a title — notes here are too short-lived
     /// to deserve naming as a separate step.
     private var preview: String {
-        let line = note.text
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .components(separatedBy: .newlines).first ?? ""
-        return line.isEmpty ? localized("Empty note") : line
+        let line = note.preview
+        if line.isEmpty {
+            return localized(note.isChecklist ? "Empty todo list" : "Empty note")
+        }
+        return line
     }
 }
 
