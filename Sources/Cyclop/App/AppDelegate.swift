@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var privacyItem: NSMenuItem?
     private var privacyAllItem: NSMenuItem?
     private var privacySectionItems: [PrivacyMode.Section: NSMenuItem] = [:]
+    private var idleItem: NSMenuItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         controller = NotchController()
@@ -15,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        IdleScreenController.shared.hide(animated: false)
         controller?.teardown()
     }
 
@@ -48,6 +50,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         )
         settings.target = self
         menu.addItem(settings)
+
+        let idle = NSMenuItem(
+            title: localized("Idle Screen"),
+            action: #selector(toggleIdleScreen),
+            keyEquivalent: ""
+        )
+        idle.target = self
+        menu.addItem(idle)
+        idleItem = idle
 
         // Sits next to the panel switch rather than in the Settings tab: it
         // changes what the panel shows, and it is the one people look for in a
@@ -100,10 +111,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         controller?.openSettings()
     }
 
+    @objc private func toggleIdleScreen() {
+        IdleScreenController.shared.toggle()
+        idleItem?.state = IdleScreenController.shared.isActive ? .on : .off
+    }
+
     /// Everything shown is re-read when the menu opens, not kept fresh in
     /// between: a menu nobody is looking at deserves no bookkeeping.
     func menuWillOpen(_ menu: NSMenu) {
         refreshPrivacyItems()
+        idleItem?.state = IdleScreenController.shared.isActive ? .on : .off
     }
 
     @objc private func quit() {

@@ -1,6 +1,6 @@
 import SwiftUI
 
-private struct CardHeightKey: PreferenceKey {
+private struct RowHeightKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = max(value, nextValue())
@@ -11,13 +11,18 @@ struct CreditsPane: View {
     @ObservedObject var usage: ClaudeUsageStore
     @ObservedObject var codex: CodexUsageStore
     @ObservedObject var cursor: CursorUsageStore
+    @ObservedObject var opencode: OpenCodeUsageStore
+    @ObservedObject var sessions: ProcessMonitorStore
     @ObservedObject var providers: UsageProviderSettings
 
-    /// Claude's extra-usage line makes it taller than the others; every card
-    /// is pinned to that height so the row is even.
+    /// Cards would otherwise hug their own content — Claude's extra-usage
+    /// line makes it taller than a plain two-row card — so every card is
+    /// pinned to whichever one actually needs the most room, and they all
+    /// end up the same size regardless of which has more lines.
     @State private var cardHeight: CGFloat?
 
     private var enabledProviders: [UsageProvider] { providers.enabled }
+
     private var columns: Int { UsageGrid.columns(for: enabledProviders.count) }
 
     var body: some View {
@@ -26,26 +31,19 @@ struct CreditsPane: View {
                 caption(localized("No usage cards enabled — turn some on in Settings"))
             } else {
                 LazyVGrid(
-                    columns: Array(repeating: GridItem(.flexible(), spacing: UsageGrid.rowSpacing), count: columns),
+                    columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: columns),
                     alignment: .leading,
-                    spacing: UsageGrid.rowSpacing
+                    spacing: 8
                 ) {
                     ForEach(enabledProviders) { provider in
                         cell { content(for: provider) }
                             .frame(height: cardHeight)
                     }
                 }
-                .fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .onPreferenceChange(CardHeightKey.self) { if $0 > 0 { cardHeight = $0 } }
-        .onChange(of: enabledProviders.count) { _, _ in cardHeight = nil }
-        .onAppear {
-            usage.reload()
-            cursor.reload()
-            codex.reload()
-        }
+        .onPreferenceChange(RowHeightKey.self) { cardHeight = $0 }
     }
 
     @ViewBuilder
@@ -54,6 +52,7 @@ struct CreditsPane: View {
         case .claude: claudeContent
         case .codex: codexContent
         case .cursor: cursorContent
+        case .opencode: opencodeContent
         }
     }
 
@@ -63,10 +62,10 @@ struct CreditsPane: View {
             Spacer(minLength: 0)
         }
         .padding(10)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(
             GeometryReader { proxy in
-                Color.clear.preference(key: CardHeightKey.self, value: proxy.size.height)
+                Color.clear.preference(key: RowHeightKey.self, value: proxy.size.height)
             }
         )
         .background(
@@ -80,7 +79,7 @@ struct CreditsPane: View {
 
     @ViewBuilder
     private var claudeContent: some View {
-        brand("CLAUDE")
+        brand("CLAUDE", running: sessions.claudeCount)
         if let snapshot = usage.snapshot {
             row(title: localized("5-hour window"), percent: snapshot.fiveHour.utilization, resetsAt: snapshot.fiveHour.resetsAt)
             row(title: localized("7-day window"), percent: snapshot.sevenDay.utilization, resetsAt: snapshot.sevenDay.resetsAt)
@@ -115,7 +114,7 @@ struct CreditsPane: View {
 
     @ViewBuilder
     private var codexContent: some View {
-        brand("CODEX")
+        brand("CODEX", running: sessions.codexCount)
         if let rateLimits = codex.snapshot {
             if let primary = rateLimits.primary {
                 row(title: windowLabel(minutes: primary.windowMinutes), percent: primary.usedPercent, resetsAt: primary.resetDate)
@@ -152,7 +151,7 @@ struct CreditsPane: View {
 
     @ViewBuilder
     private var cursorContent: some View {
-        brand("CURSOR")
+        brand("CURSOR", running: sessions.cursorCount)
         if let snapshot = cursor.snapshot {
             row(title: localized("Cursor Models"), percent: snapshot.cursorModelsPercent, resetsAt: snapshot.resetDate)
             row(title: localized("Other Models"), percent: snapshot.otherModelsPercent)
@@ -163,13 +162,53 @@ struct CreditsPane: View {
         }
     }
 
+    // MARK: - OpenCode
+
+    @ViewBuilder
+    private var opencodeContent: some View {
+        brand("OPENCODE", running: sessions.opencodeCount)
+        if let snapshot = opencode.snapshot {
+            row(title: localized("5-hour window"), percent: snapshot.rollingUsage?.usagePercent, resetsAt: snapshot.rollingUsage?.resetDate)
+            row(title: localized("Weekly window"), percent: snapshot.weeklyUsage?.usagePercent, resetsAt: snapshot.weeklyUsage?.resetDate)
+            row(title: localized("Monthly window"), percent: snapshot.monthlyUsage?.usagePercent, resetsAt: snapshot.monthlyUsage?.resetDate)
+        } else if let stats = opencode.local {
+            statRow(title: localized("Today"), value: Self.breakdownSummary(stats.today))
+            statRow(title: localized("This month"), value: Self.breakdownSummary(stats.month))
+            if !stats.modelCosts.isEmpty {
+                statRow(title: localized("Cost"), value: Self.costSummary(stats.modelCosts))
+            }
+            if let asOf = stats.asOf {
+                caption(Self.asOfLabel(for: asOf))
+            }
+        } else if opencode.noCredentials {
+            caption(localized("Not signed in to OpenCode"))
+        } else if opencode.unreachable {
+            caption(localized("Can't reach OpenCode"))
+        } else {
+            caption(localized("No OpenCode sessions found yet"))
+        }
+    }
+
     // MARK: - Shared row
 
-    private func brand(_ name: String) -> some View {
-        Text(name)
-            .font(.system(size: 10, weight: .semibold))
-            .tracking(0.8)
-            .foregroundStyle(Theme.tertiary)
+    /// A dot for whether the CLI is running right now, and how many —
+    /// separate from the quota above it, since one changes by the minute and
+    /// the other by the session.
+    private func brand(_ name: String, running: Int) -> some View {
+        HStack(spacing: 5) {
+            Text(name)
+                .font(.system(size: 10, weight: .semibold))
+                .tracking(0.8)
+                .foregroundStyle(Theme.tertiary)
+            Circle()
+                .fill(running > 0 ? Color.white.opacity(0.85) : Theme.hairline)
+                .frame(width: 5, height: 5)
+            if running > 0 {
+                Text("\(running)")
+                    .font(.system(size: 9, weight: .medium).monospacedDigit())
+                    .foregroundStyle(Theme.secondary)
+            }
+        }
     }
 
     private func caption(_ text: String) -> some View {
@@ -218,6 +257,53 @@ struct CreditsPane: View {
 
     private func currency(_ value: Double, _ code: String?) -> String {
         String(format: "%.2f %@", value, code ?? "")
+    }
+
+    /// A plain label/value line without a bar — the OpenCode card's local
+    /// mirror has no limit to fill a bar against, so raw numbers it is.
+    private func statRow(title: String, value: String) -> some View {
+        HStack(spacing: 4) {
+            Text(title)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Theme.secondary)
+            Spacer(minLength: 4)
+            Text(value)
+                .font(.system(size: 9).monospacedDigit())
+                .foregroundStyle(Theme.tertiary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+    }
+
+    /// 5,567,993 → "5.6M", 1,234 → "1.2K" — tokens, which are otherwise
+    /// digits nobody can scan.
+    private static func compact(_ value: Int) -> String {
+        if value >= 1_000_000 {
+            return String(format: "%.1fM", Double(value) / 1_000_000)
+        }
+        if value >= 1_000 {
+            return String(format: "%.1fK", Double(value) / 1_000)
+        }
+        return "\(value)"
+    }
+
+    /// "203K in · 20K out · 24K rea · 6.8M cache" — the same split `opencode
+    /// stats` prints, minus the components the window has nothing of.
+    private static func breakdownSummary(_ breakdown: OpenCodeTokenBreakdown) -> String {
+        var parts: [String] = []
+        if let value = breakdown.input, value > 0 { parts.append("\(compact(value)) in") }
+        if let value = breakdown.output, value > 0 { parts.append("\(compact(value)) out") }
+        if let value = breakdown.reasoning, value > 0 { parts.append("\(compact(value)) rea") }
+        if let value = breakdown.cacheRead, value > 0 { parts.append("\(compact(value)) cache") }
+        if let value = breakdown.cacheWrite, value > 0 { parts.append("\(compact(value)) cw") }
+        return parts.isEmpty ? "—" : parts.joined(separator: " · ")
+    }
+
+    /// "big-pickle $0.00 · haiku-4-5 $0.00" — one line per model, most
+    /// expensive first, truncated if the tail runs long.
+    private static func costSummary(_ costs: [(model: String, cost: Double)]) -> String {
+        costs.map { "\($0.model) $\(String(format: "%.2f", $0.cost))" }
+            .joined(separator: " · ")
     }
 
     /// White past halfway, amber once it starts to matter, red once there is

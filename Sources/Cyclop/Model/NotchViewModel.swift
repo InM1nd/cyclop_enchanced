@@ -4,7 +4,7 @@ import Combine
 @MainActor
 final class NotchViewModel: ObservableObject {
     enum Tab: String, CaseIterable, Identifiable {
-        case media, shelf, clipboard, snippets, calendar, translate, notes, teleprompter, credits, pomodoro, memory, settings
+        case media, shelf, clipboard, snippets, calendar, translate, notes, teleprompter, credits, pomodoro, memory, colorPicker, settings
         var id: String { rawValue }
 
         var symbol: String {
@@ -20,6 +20,7 @@ final class NotchViewModel: ObservableObject {
             case .credits: return "gauge"
             case .pomodoro: return "timer"
             case .memory: return "memorychip"
+            case .colorPicker: return "eyedropper.halffull"
             case .settings: return "gearshape.fill"
             }
         }
@@ -37,6 +38,7 @@ final class NotchViewModel: ObservableObject {
             case .credits: return localized("Usage")
             case .pomodoro: return localized("Pomodoro")
             case .memory: return localized("Memory")
+            case .colorPicker: return localized("Colors")
             case .settings: return localized("Settings")
             }
         }
@@ -55,7 +57,12 @@ final class NotchViewModel: ObservableObject {
         /// past on the way to a track or a calendar, so it sits last,
         /// furthest from the tabs people actually rest on.
         static let leftRail: [Tab] = [.media, .shelf, .clipboard, .snippets, .calendar, .translate]
-        static let rightRail: [Tab] = [.notes, .memory, .teleprompter, .credits, .pomodoro, .settings]
+        static let rightRail: [Tab] = [.notes, .memory, .teleprompter, .credits, .pomodoro, .colorPicker, .settings]
+
+        /// Tabs the user may hide. Settings stays so the switches remain reachable.
+        static var toggleable: [Tab] {
+            leftRail + rightRail.filter { $0 != .settings }
+        }
     }
 
     @Published var isOpen = false
@@ -81,12 +88,14 @@ final class NotchViewModel: ObservableObject {
                 usage.reload()
                 codex.reload()
                 cursor.reload()
+                opencode.reload()
             }
             if tab == .memory {
                 memory.setActive(true)
                 cleanup.scan()
             }
             if oldValue == .memory, tab != .memory { memory.setActive(false) }
+            sessions.setActive(tab == .credits)
             // Leaving the notes sweeps out the blank ones — they cost one
             // hover to recreate, and a trail of empty cards is the clutter a
             // scratchpad exists to avoid.
@@ -131,16 +140,42 @@ final class NotchViewModel: ObservableObject {
     let usage = ClaudeUsageStore()
     let codex = CodexUsageStore()
     let cursor = CursorUsageStore()
+    let opencode = OpenCodeUsageStore()
+    let sessions = ProcessMonitorStore()
     let usageProviders = UsageProviderSettings()
+    let modules = TabModules()
     let sleepManager = SleepManager()
     let pomodoro = PomodoroStore()
     let memory = MemoryPressureStore()
     let cleanup = CleanupStore()
+    let colorPicker = ColorPickerStore()
     /// Shared by every pane that shows something worth not showing.
     let privacy = PrivacyMode()
     /// Opens the full settings window. Set by the controller — the pane
     /// cannot own a window of its own.
     var onOpenFullSettings: (() -> Void)?
+
+    var visibleLeftRail: [Tab] { Tab.leftRail.filter { modules.isEnabled($0) } }
+    var visibleRightRail: [Tab] { Tab.rightRail.filter { modules.isEnabled($0) } }
+    var railIconCount: Int { max(visibleLeftRail.count, visibleRightRail.count, 1) }
+
+    func setModuleEnabled(_ tab: Tab, _ on: Bool) {
+        modules.setEnabled(tab, on)
+        if !modules.isEnabled(self.tab) {
+            self.tab = visibleLeftRail.first
+                ?? visibleRightRail.first
+                ?? .settings
+        }
+    }
+
+    func applyModulePreset(_ preset: TabModules.Preset) {
+        modules.apply(preset)
+        if !modules.isEnabled(self.tab) {
+            self.tab = visibleLeftRail.first
+                ?? visibleRightRail.first
+                ?? .settings
+        }
+    }
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -179,6 +214,7 @@ final class NotchViewModel: ObservableObject {
             shelf.objectWillChange,
             clipboard.objectWillChange,
             usageProviders.objectWillChange,
+            modules.objectWillChange,
         ] {
             child
                 .sink { [weak self] _ in
@@ -256,6 +292,7 @@ final class NotchViewModel: ObservableObject {
         usage.reload(force: force)
         cursor.reload(force: force)
         codex.reload()
+        opencode.reload()
     }
 
     private func holdPreview(_ rim: CollapsedRim, seconds: TimeInterval) {
@@ -352,6 +389,10 @@ final class NotchViewModel: ObservableObject {
         // never prompts on its own.
         calendar.start()
         memory.start()
+        usage.reload()
+        codex.reload()
+        cursor.reload()
+        opencode.reload()
 
         // Screenshots reach the shelf through here whether they were taken on
         // this Mac or on a phone: a copy made on the phone arrives in the same

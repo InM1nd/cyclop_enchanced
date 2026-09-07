@@ -11,6 +11,9 @@ struct SettingsPane: View {
     @ObservedObject var sleepManager: SleepManager
     @ObservedObject var memory: MemoryPressureStore
     @ObservedObject var usageProviders: UsageProviderSettings
+    @ObservedObject var modules: TabModules
+    var setModuleEnabled: (NotchViewModel.Tab, Bool) -> Void
+    var applyModulePreset: (TabModules.Preset) -> Void
     var compact: Bool = true
     var onOpenFull: (() -> Void)? = nil
     var onPreviewYellow: () -> Void
@@ -62,6 +65,45 @@ struct SettingsPane: View {
                 }
 
                 if !compact {
+                section(localized("Idle Screen")) {
+                    IdleScreenStyleSection()
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
+                }
+
+                section(localized("Modules")) {
+                    HStack(spacing: 6) {
+                        ForEach(TabModules.Preset.allCases) { preset in
+                            Button {
+                                applyModulePreset(preset)
+                            } label: {
+                                Text(localized(preset.titleKey))
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundStyle(Theme.secondary)
+                                    .padding(.horizontal, 9)
+                                    .frame(height: 22)
+                                    .background(
+                                        Capsule(style: .continuous).fill(Theme.surfaceHover)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.bottom, 2)
+
+                    ForEach(NotchViewModel.Tab.toggleable) { tab in
+                        toggleRow(
+                            symbol: tab.symbol,
+                            title: tab.title,
+                            isOn: Binding(
+                                get: { modules.isEnabled(tab) },
+                                set: { setModuleEnabled(tab, $0) }
+                            )
+                        )
+                    }
+                }
+
                 section(localized("Screenshots")) {
                     toggleRow(
                         symbol: "photo.on.rectangle",
@@ -317,5 +359,119 @@ struct SettingsPane: View {
         .buttonStyle(.plain)
         .disabled(disabled)
         .opacity(disabled ? 0.4 : 1)
+    }
+}
+
+// MARK: - Idle Screen style + colour
+
+/// Isolated from `SettingsPane` so colour edits cannot rebuild General/Modules.
+private struct IdleScreenStyleSection: View {
+    @ObservedObject private var settings = IdleScreenSettings.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 72), spacing: 6)],
+                alignment: .leading,
+                spacing: 6
+            ) {
+                ForEach(IdleScreenSettings.Style.allCases) { style in
+                    let selected = settings.style == style
+                    Button {
+                        settings.style = style
+                    } label: {
+                        Text(localized(style.titleKey))
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(selected ? Color.black : Theme.secondary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 22)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(selected ? settings.color(for: style) : Theme.surfaceHover)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            colorSliders
+        }
+    }
+
+    private var colorSliders: some View {
+        let hsb = settings.hsb(for: settings.style)
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Text(localized("Color"))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Theme.secondary)
+                Spacer(minLength: 0)
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(settings.color(for: settings.style))
+                    .frame(width: 22, height: 14)
+                Text(settings.hex(for: settings.style))
+                    .font(.system(size: 10, weight: .medium).monospacedDigit())
+                    .foregroundStyle(Theme.tertiary)
+            }
+            ColorStrip(
+                value: hsb.hue,
+                colors: stride(from: 0.0, through: 1.0, by: 1.0 / 6.0).map {
+                    Color(hue: $0, saturation: 0.9, brightness: 1)
+                }
+            ) { hue in
+                settings.setHSB(
+                    hue: hue,
+                    saturation: max(hsb.saturation, 0.15),
+                    brightness: max(hsb.brightness, 0.35),
+                    for: settings.style
+                )
+            }
+            ColorStrip(
+                value: hsb.saturation,
+                colors: [
+                    Color(hue: hsb.hue, saturation: 0, brightness: max(hsb.brightness, 0.35)),
+                    Color(hue: hsb.hue, saturation: 1, brightness: max(hsb.brightness, 0.35)),
+                ]
+            ) { saturation in
+                settings.setHSB(
+                    hue: hsb.hue,
+                    saturation: saturation,
+                    brightness: max(hsb.brightness, 0.35),
+                    for: settings.style
+                )
+            }
+        }
+    }
+}
+
+/// A gradient strip with a knob, dragged anywhere along its length.
+private struct ColorStrip: View {
+    var value: Double
+    var colors: [Color]
+    var onChange: (Double) -> Void
+
+    private let knob: CGFloat = 11
+
+    var body: some View {
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing))
+                Circle()
+                    .strokeBorder(Color.white, lineWidth: 2)
+                    .frame(width: knob, height: knob)
+                    .shadow(color: .black.opacity(0.5), radius: 1)
+                    .offset(x: min(max(value, 0), 1) * max(width - knob, 0))
+            }
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { drag in
+                        let track = max(width - knob, 1)
+                        onChange(min(max((drag.location.x - knob / 2) / track, 0), 1))
+                    }
+            )
+        }
+        .frame(height: knob)
     }
 }

@@ -113,7 +113,14 @@ struct TranslatePane: View {
 
     @ViewBuilder
     private func outcome(_ font: CGFloat) -> some View {
-        if let failure = translator.failure {
+        if translator.isDownloading {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(localized("Downloading the language pack…"))
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else if let failure = translator.failure {
             VStack(alignment: .leading, spacing: 6) {
                 Text(failure)
                     .font(.system(size: 11))
@@ -121,6 +128,7 @@ struct TranslatePane: View {
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 10) {
                     if translator.needsDownload {
+                        Button(localized("Download")) { translator.requestDownload() }
                         Button("Translation Languages…") { Translator.openLanguageSettings() }
                     }
                     Button("Retry") { translator.retry() }

@@ -76,19 +76,27 @@ final class CodexUsageStore: ObservableObject {
         return formatter.date(from: string)
     }
 
-    /// Session logs live under `sessions/<year>/<month>/<day>/`, named so
-    /// that the lexically greatest entry at each level is also the newest.
+    /// Newest by modification time, not by the date in the path. A long-lived
+    /// Codex session keeps appending to the folder it was born in — lexical
+    /// "latest day" then points at a quieter newer folder and freezes Usage.
     private static func latestRolloutFile() -> URL? {
-        guard let year = latestChild(of: root) else { return nil }
-        guard let month = latestChild(of: year) else { return nil }
-        guard let day = latestChild(of: month) else { return nil }
-        return latestChild(of: day, extension: "jsonl")
-    }
+        guard let enumerator = FileManager.default.enumerator(
+            at: root,
+            includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else { return nil }
 
-    private static func latestChild(of directory: URL, extension ext: String? = nil) -> URL? {
-        guard let items = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
-        else { return nil }
-        let filtered = ext.map { e in items.filter { $0.pathExtension == e } } ?? items
-        return filtered.max { $0.lastPathComponent < $1.lastPathComponent }
+        var best: (url: URL, date: Date)?
+        for case let url as URL in enumerator {
+            guard url.pathExtension == "jsonl",
+                  url.lastPathComponent.hasPrefix("rollout-") else { continue }
+            guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .isRegularFileKey]),
+                  values.isRegularFile == true,
+                  let date = values.contentModificationDate else { continue }
+            if best == nil || date > best!.date {
+                best = (url, date)
+            }
+        }
+        return best?.url
     }
 }

@@ -9,6 +9,9 @@
 "Snippets" = "Snippets";
 "Calendar" = "Calendar";
 "Translate" = "Translate";
+"Pomodoro" = "Pomodoro";
+"Memory" = "Memory";
+"Colors" = "Colors";
 "Settings" = "Settings";
 
 /* Menu bar */
@@ -16,10 +19,21 @@
 "Settings…" = "Settings…";
 "All Settings…" = "All Settings…";
 "Notch glows only when the graph is red." = "Notch glows only when the graph is red.";
+"Idle Screen" = "Idle Screen";
+"Agents" = "Agents";
+"Matrix" = "Matrix";
+"Life" = "Life";
+"Stars" = "Stars";
+"Portrait" = "Portrait";
+"Color" = "Color";
 "Quit" = "Quit";
 
 /* Settings tab */
 "General" = "General";
+"Modules" = "Modules";
+"Work" = "Work";
+"Call" = "Call";
+"Minimal" = "Minimal";
 "Launch at Login" = "Launch at Login";
 "Keep Awake with Lid Closed" = "Keep Awake with Lid Closed";
 "Screenshots" = "Screenshots";
@@ -53,12 +67,22 @@
 /* Notes */
 "Notes" = "Notes";
 "New Note" = "New Note";
+"New Todo List" = "New Todo List";
 "Empty note" = "Empty note";
+"Empty todo list" = "Empty todo list";
 "Jot something down…" = "Jot something down…";
+"What needs doing…" = "What needs doing…";
+"Add item" = "Add item";
+"Convert to Todo List" = "Convert to Todo List";
+"Convert to Note" = "Convert to Note";
+"Pin" = "Pin";
+"Unpin" = "Unpin";
 
 /* Translate */
 "Translation Languages…" = "Translation Languages…";
 "Retry" = "Retry";
+"Download" = "Download";
+"Downloading the language pack…" = "Downloading the language pack…";
 "The %@ → %@ language pack is not installed." = "The %@ → %@ language pack is not installed.";
 "macOS does not translate this pair of languages." = "macOS does not translate this pair of languages.";
 
@@ -82,11 +106,17 @@
    and not for a spelled-out plural, and abbreviations decline in no language. */
 "now" = "now";
 "any moment" = "any moment";
+"today" = "today";
 "tomorrow" = "tomorrow";
+"Today" = "Today";
+"Tomorrow" = "Tomorrow";
 "in %d min" = "in %d min";
 "in %d h" = "in %d h";
 "in %d h %d min" = "in %d h %d min";
 "in %d d" = "in %d d";
+"leave now" = "leave now";
+"leave in %d min" = "leave in %d min";
+"leave at %@" = "leave at %@";
 
 /* Saved screenshots. The key is the date format itself, so a language can put
    the parts in its own order. */
@@ -126,6 +156,20 @@
 "Not signed in to Cursor" = "Not signed in to Cursor";
 "Can't reach Cursor" = "Can't reach Cursor";
 
+/* OpenCode: the Go plan's usage windows, fetched live with the key the
+   OpenCode CLI stores at ~/.local/share/opencode/auth.json. Without the plan
+   the card falls back to tokens and spend mirrored from opencode.db. */
+"Weekly window" = "Weekly window";
+"Monthly window" = "Monthly window";
+"Not signed in to OpenCode" = "Not signed in to OpenCode";
+"Can't reach OpenCode" = "Can't reach OpenCode";
+"This month" = "This month";
+"Cost" = "Cost";
+"No OpenCode sessions found yet" = "No OpenCode sessions found yet";
+
+/* Usage tab: grid shown when every card has been turned off in Settings. */
+"No usage cards enabled — turn some on in Settings" = "No usage cards enabled — turn some on in Settings";
+
 /* Pomodoro */
 "Pomodoro" = "Pomodoro";
 "Focus" = "Focus";
@@ -151,6 +195,13 @@
 "Swap" = "Swap";
 "Disk free" = "Disk free";
 "Starts in 10 min" = "Starts in 10 min";
+
+/* Color picker */
+"Pick a colour from the screen" = "Pick a colour from the screen";
+"It copies as HEX automatically" = "It copies as HEX automatically";
+"Pick from Screen" = "Pick from Screen";
+"Copied" = "Copied";
+
 "App & System Caches" = "App & System Caches";
 "Everything in ~/Library/Caches — every app rebuilds this from scratch." = "Everything in ~/Library/Caches — every app rebuilds this from scratch.";
 "npm Package Cache" = "npm Package Cache";
@@ -190,3 +241,4 @@
 "Preview red" = "Preview red";
 "Preview meeting" = "Preview meeting";
 "Jetsam" = "Pressure";
+

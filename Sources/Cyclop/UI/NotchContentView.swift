@@ -116,7 +116,7 @@ struct NotchContentView: View {
             Spacer(minLength: 0)
             if isOpen {
                 trailing
-                    .padding(.trailing, 16)
+                    .padding(.trailing, 12)
                     .transition(.opacity)
             }
         }
@@ -125,6 +125,33 @@ struct NotchContentView: View {
 
     @ViewBuilder
     private var trailing: some View {
+        HStack(spacing: 8) {
+            if vm.pomodoro.isRunning, vm.tab != .pomodoro {
+                Text(vm.pomodoro.clock)
+                    .font(.system(size: 10, weight: .medium).monospacedDigit())
+                    .foregroundStyle(Color.white.opacity(0.8))
+            }
+            tabTrailing
+            idleEyeButton
+        }
+    }
+
+    private var idleEyeButton: some View {
+        Button {
+            IdleScreenController.shared.show()
+        } label: {
+            Image(systemName: "eye.fill")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(Theme.tertiary)
+                .frame(width: 18, height: 18)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(localized("Idle Screen"))
+    }
+
+    @ViewBuilder
+    private var tabTrailing: some View {
         switch vm.tab {
         case .media:
             HStack(spacing: 6) {
@@ -148,8 +175,6 @@ struct NotchContentView: View {
                     .foregroundStyle(next.isRunning ? Color.white.opacity(0.8) : Theme.tertiary)
             }
         case .translate:
-            // Nothing: the columns name both languages already, and the strip
-            // is the one part of the panel worth not spending on a repeat.
             EmptyView()
         case .notes:
             NotesCounter(notes: vm.notes)
@@ -165,6 +190,12 @@ struct NotchContentView: View {
             Circle()
                 .fill(MemoryPane.color(for: vm.memory.level))
                 .frame(width: 7, height: 7)
+        case .colorPicker:
+            if let hex = vm.colorPicker.current?.hex {
+                Text(hex)
+                    .font(.system(size: 10, weight: .medium).monospacedDigit())
+                    .foregroundStyle(Theme.tertiary)
+            }
         case .settings:
             EmptyView()
         }
@@ -183,9 +214,9 @@ struct NotchContentView: View {
 
     private var content: some View {
         HStack(spacing: 14) {
-            Rail(vm: vm, tabs: NotchViewModel.Tab.leftRail)
+            Rail(vm: vm, tabs: vm.visibleLeftRail)
             panes
-            Rail(vm: vm, tabs: NotchViewModel.Tab.rightRail)
+            Rail(vm: vm, tabs: vm.visibleRightRail)
         }
         .padding(.horizontal, 14)
         // The body's height is measured from this same number, so the two
@@ -233,17 +264,22 @@ struct NotchContentView: View {
         case .teleprompter:
             TeleprompterPane(prompter: vm.teleprompter, wantsKeyboard: $vm.wantsKeyboard)
         case .credits:
-            CreditsPane(usage: vm.usage, codex: vm.codex, cursor: vm.cursor, providers: vm.usageProviders)
+            CreditsPane(usage: vm.usage, codex: vm.codex, cursor: vm.cursor, opencode: vm.opencode, sessions: vm.sessions, providers: vm.usageProviders)
         case .pomodoro:
             PomodoroPane(pomodoro: vm.pomodoro)
         case .memory:
             MemoryPane(memory: vm.memory, cleanup: vm.cleanup)
+        case .colorPicker:
+            ColorPickerPane(picker: vm.colorPicker)
         case .settings:
             SettingsPane(
                 shelf: vm.shelf,
                 sleepManager: vm.sleepManager,
                 memory: vm.memory,
                 usageProviders: vm.usageProviders,
+                modules: vm.modules,
+                setModuleEnabled: vm.setModuleEnabled,
+                applyModulePreset: vm.applyModulePreset,
                 compact: true,
                 onOpenFull: { vm.onOpenFullSettings?() },
                 onPreviewYellow: { vm.previewMemoryWarn() },
@@ -296,7 +332,7 @@ private struct Rail: View {
                 } label: {
                     Image(systemName: tab.symbol)
                         .font(.system(size: 12, weight: .medium))
-                        .frame(width: 30, height: vm.geometry.railIconHeight(forIconCount: NotchViewModel.Tab.leftRail.count))
+                        .frame(width: 30, height: vm.geometry.railIconHeight(forIconCount: vm.railIconCount))
                         .background(
                             RoundedRectangle(cornerRadius: 7, style: .continuous)
                                 .fill(fill(for: tab))

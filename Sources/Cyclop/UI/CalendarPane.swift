@@ -160,38 +160,44 @@ struct CalendarPane: View {
         .padding(.top, 4)
     }
 
-    /// Everything after the next meeting, as a column on the right. A meeting
-    /// that overlaps `next` in time gets its own Join button — otherwise the
-    /// only way in is switching to Calendar, and the whole point of an
-    /// overlap is that two meetings are joinable right now, not just one.
+    /// Everything after the next meeting, as a column on the right. Grouped by
+    /// day — a bare clock used to leave "is this today or Thursday?" to a
+    /// slight opacity change, which nobody read as a date.
     private var rest: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            ForEach(calendar.upcoming.prefix(4)) { meeting in
-                HStack(spacing: 7) {
-                    Circle()
-                        .fill(Color(meeting.calendarColor))
-                        .frame(width: 5, height: 5)
-                    Text(Self.clock.string(from: meeting.start))
-                        .font(.system(size: 10, weight: .medium).monospacedDigit())
-                        .foregroundStyle(Theme.secondary)
-                        .frame(width: 34, alignment: .leading)
-                        .opacity(Foundation.Calendar.current.isDateInToday(meeting.start) ? 1 : 0.6)
-                    SpoilerText(
-                        text: meeting.title,
-                        hidden: hidden,
-                        font: .system(size: 10.5),
-                        color: Theme.tertiary,
-                        height: 11,
-                        seed: UInt64(bitPattern: Int64(meeting.id.hashValue))
-                    )
-                    if meeting.link != nil, let next = calendar.next, meeting.overlaps(next) {
-                        Spacer(minLength: 4)
-                        joinButton(for: meeting)
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(upcomingGroups) { group in
+                Text(group.title)
+                    .font(.system(size: 9, weight: .semibold))
+                    .tracking(0.4)
+                    .foregroundStyle(Theme.tertiary)
+                    .padding(.top, group.id == upcomingGroups.first?.id ? 0 : 2)
+
+                ForEach(group.meetings) { meeting in
+                    HStack(spacing: 7) {
+                        Circle()
+                            .fill(Color(meeting.calendarColor))
+                            .frame(width: 5, height: 5)
+                        Text(Self.clock.string(from: meeting.start))
+                            .font(.system(size: 10, weight: .medium).monospacedDigit())
+                            .foregroundStyle(Theme.secondary)
+                            .frame(width: 34, alignment: .leading)
+                        SpoilerText(
+                            text: meeting.title,
+                            hidden: hidden,
+                            font: .system(size: 10.5),
+                            color: Theme.tertiary,
+                            height: 11,
+                            seed: UInt64(bitPattern: Int64(meeting.id.hashValue))
+                        )
+                        if meeting.link != nil, let next = calendar.next, meeting.overlaps(next) {
+                            Spacer(minLength: 4)
+                            joinButton(for: meeting)
+                        }
                     }
                 }
             }
             if calendar.upcoming.isEmpty {
-                Text("No other meetings this week")
+                Text(localized("No other meetings this week"))
                     .font(.system(size: 10))
                     .foregroundStyle(Theme.tertiary)
             }
@@ -201,6 +207,26 @@ struct CalendarPane: View {
         // Clears the gear button sitting at the pane's own top-trailing
         // corner (#36) — without this, its first row ran straight under it.
         .padding(.trailing, 26)
+    }
+
+    private struct DayGroup: Identifiable {
+        let id: Date
+        let title: String
+        var meetings: [CalendarStore.Meeting]
+    }
+
+    private var upcomingGroups: [DayGroup] {
+        let cal = Foundation.Calendar.current
+        var groups: [DayGroup] = []
+        for meeting in calendar.upcoming.prefix(4) {
+            let day = cal.startOfDay(for: meeting.start)
+            if let index = groups.lastIndex(where: { $0.id == day }) {
+                groups[index].meetings.append(meeting)
+            } else {
+                groups.append(DayGroup(id: day, title: Self.sectionDay(for: day), meetings: [meeting]))
+            }
+        }
+        return groups
     }
 
     /// An icon rather than the label the main button spells out: the row has
@@ -220,11 +246,27 @@ struct CalendarPane: View {
         .help(localized("Join"))
     }
 
+    /// Fixed buffer before the meeting start — no maps, just "leave in N min".
+    private static let leaveBufferMinutes = 15
+
     private func subtitle(for meeting: CalendarStore.Meeting) -> String {
         var parts = [Self.day(for: meeting.start)].compactMap { $0 }
         parts.append("\(Self.clock.string(from: meeting.start))–\(Self.clock.string(from: meeting.end))")
+        if let leave = Self.leaveHint(for: meeting, from: calendar.now) {
+            parts.append(leave)
+        }
         if let provider = meeting.provider { parts.append(provider) }
         return parts.joined(separator: " · ").sentenceCased
+    }
+
+    /// "leave in 8 min" / "leave now" / "leave at 14:45" — only before the meeting.
+    static func leaveHint(for meeting: CalendarStore.Meeting, from now: Date) -> String? {
+        guard !meeting.isRunning else { return nil }
+        let leaveAt = meeting.start.addingTimeInterval(-TimeInterval(leaveBufferMinutes * 60))
+        let minutes = Int((leaveAt.timeIntervalSince(now) / 60).rounded(.up))
+        if minutes <= 0 { return localized("leave now") }
+        if minutes < 60 { return localized("leave in %d min", minutes) }
+        return localized("leave at %@", clock.string(from: leaveAt))
     }
 
     static let clock: DateFormatter = {
@@ -240,19 +282,43 @@ struct CalendarPane: View {
         return formatter
     }()
 
-    /// Nothing for today — the time alone says it. A word for tomorrow, a full
-    /// date for anything further out.
+    private static let shortWeekday: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: appLanguage)
+        formatter.dateFormat = "EEE d"
+        return formatter
+    }()
+
+    /// Always names the day — "today" / "tomorrow" / the weekday — so the
+    /// subtitle never leaves the date to guesswork.
     static func day(for date: Date) -> String? {
         let calendar = Foundation.Calendar.current
-        if calendar.isDateInToday(date) { return nil }
+        if calendar.isDateInToday(date) { return localized("today") }
         if calendar.isDateInTomorrow(date) { return localized("tomorrow") }
         return weekday.string(from: date)
     }
 
+    /// Section headers in the upcoming column. Capitalised: they stand alone.
+    static func sectionDay(for date: Date) -> String {
+        let calendar = Foundation.Calendar.current
+        if calendar.isDateInToday(date) { return localized("Today") }
+        if calendar.isDateInTomorrow(date) { return localized("Tomorrow") }
+        return shortWeekday.string(from: date)
+    }
+
     /// "Через 12 мин" / "Идёт сейчас" — shown in the panel header, on its own,
     /// so it is a label and starts with a capital in either language.
+    /// Inside the leave buffer, swaps to "Leave in N min" / "Leave now".
     static func countdown(to meeting: CalendarStore.Meeting, from now: Date) -> String {
-        phrase(to: meeting, from: now).sentenceCased
+        if !meeting.isRunning {
+            let leaveAt = meeting.start.addingTimeInterval(-TimeInterval(leaveBufferMinutes * 60))
+            let minutes = Int((leaveAt.timeIntervalSince(now) / 60).rounded(.up))
+            if minutes <= 0 { return localized("leave now").sentenceCased }
+            if minutes <= leaveBufferMinutes {
+                return localized("leave in %d min", minutes).sentenceCased
+            }
+        }
+        return phrase(to: meeting, from: now).sentenceCased
     }
 
     /// The wording alone, lower-case as the languages have it. Kept apart from

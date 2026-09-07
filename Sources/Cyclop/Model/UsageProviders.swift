@@ -1,15 +1,20 @@
 import Foundation
 
+/// The brand cards on the Usage tab. Order here is render order, both in the
+/// grid and in the Settings toggle list.
 enum UsageProvider: String, CaseIterable, Identifiable {
-    case claude, codex, cursor
+    case claude, codex, cursor, opencode
 
     var id: String { rawValue }
 
+    /// Brand names, not translated — same call as the all-caps labels
+    /// already drawn on each card.
     var title: String {
         switch self {
         case .claude: "Claude"
         case .codex: "Codex"
         case .cursor: "Cursor"
+        case .opencode: "OpenCode"
         }
     }
 
@@ -18,15 +23,20 @@ enum UsageProvider: String, CaseIterable, Identifiable {
         case .claude: "sparkle"
         case .codex: "chevron.left.forwardslash.chevron.right"
         case .cursor: "cursorarrow"
+        case .opencode: "terminal"
         }
     }
 }
 
+/// Near-square grid shared by the card layout and the window's body height —
+/// both need the same row count to agree, or the panel and the grid drift
+/// apart. rows = ⌊√n⌋, cols = ⌈n/rows⌉: 3 → 1×3, 4 → 2×2, 6 → 2×3, width
+/// grows before height does, since the panel has more of that to give.
 enum UsageGrid {
+    /// Gap between cards, both across and down — `CreditsPane`'s `LazyVGrid`
+    /// spacing, mirrored here so the window's body-height math agrees with it.
     static let rowSpacing: CGFloat = 8
 
-    /// Width grows first: 1 → one card, 2 → two across, 3 → three across,
-    /// 4 → 2×2. `Int(sqrt(3))` is 1, so three providers stay on a single row.
     static func rows(for count: Int) -> Int {
         guard count > 1 else { return max(count, 1) }
         return max(Int(Double(count).squareRoot()), 1)
@@ -38,6 +48,9 @@ enum UsageGrid {
     }
 }
 
+/// Which brand cards show on the Usage tab. A separate on/off set from
+/// `TabModules`: hiding the whole Usage tab and hiding one card inside it
+/// are different questions, so they get different storage.
 @MainActor
 final class UsageProviderSettings: ObservableObject {
     private static let key = "usageProviders.disabled"
@@ -53,6 +66,8 @@ final class UsageProviderSettings: ObservableObject {
         !disabled.contains(provider.rawValue)
     }
 
+    /// Providers left on, in `UsageProvider`'s declared order — what the
+    /// grid actually renders.
     var enabled: [UsageProvider] {
         UsageProvider.allCases.filter(isEnabled)
     }
