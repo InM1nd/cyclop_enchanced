@@ -13,3 +13,6 @@ build/
 *.key
 *.mobileprovision
 *.certSigningRequest
+
+# Локальный кэш Serena
+.serena/
