@@ -277,6 +277,7 @@ struct NotchContentView: View {
                 sleepManager: vm.sleepManager,
                 memory: vm.memory,
                 usageProviders: vm.usageProviders,
+                updater: vm.updater,
                 modules: vm.modules,
                 setModuleEnabled: vm.setModuleEnabled,
                 applyModulePreset: vm.applyModulePreset,

@@ -239,3 +239,17 @@
 "Pick from Screen" = "Пипетка";
 "Copied" = "Скопировано";
 
+
+/* Обновления */
+"Check for Updates" = "Проверить обновления";
+"Checking for Updates…" = "Проверяю обновления…";
+"Up to Date · %@" = "Последняя версия · %@";
+"Update to %@" = "Обновить до %@";
+"Installing Update…" = "Устанавливаю обновление…";
+"Download %@ from GitHub" = "Скачать %@ с GitHub";
+"Update failed: %@" = "Не обновилось: %@";
+"GitHub did not answer" = "GitHub не ответил";
+"Download failed" = "Не скачалось";
+"The downloaded app is not the expected version" = "В образе не та версия";
+"The downloaded app is not signed by Cyclop" = "Образ подписан не Cyclop";
+"%@ failed" = "%@ завершился с ошибкой";

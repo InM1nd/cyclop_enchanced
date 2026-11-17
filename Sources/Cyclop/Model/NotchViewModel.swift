@@ -150,6 +150,7 @@ final class NotchViewModel: ObservableObject {
     let memory = MemoryPressureStore()
     let cleanup = CleanupStore()
     let colorPicker = ColorPickerStore()
+    let updater = UpdateStore()
     /// Shared by every pane that shows something worth not showing.
     let privacy = PrivacyMode()
     /// Opens the full settings window. Set by the controller — the pane

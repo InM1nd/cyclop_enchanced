@@ -11,6 +11,7 @@ struct SettingsPane: View {
     @ObservedObject var sleepManager: SleepManager
     @ObservedObject var memory: MemoryPressureStore
     @ObservedObject var usageProviders: UsageProviderSettings
+    @ObservedObject var updater: UpdateStore
     @ObservedObject var modules: TabModules
     var setModuleEnabled: (NotchViewModel.Tab, Bool) -> Void
     var applyModulePreset: (TabModules.Preset) -> Void
@@ -38,6 +39,7 @@ struct SettingsPane: View {
                         title: localized("Keep Awake with Lid Closed"),
                         isOn: keepAwakeBinding
                     )
+                    updateRow
                 }
 
                 section(localized("Usage")) {
@@ -194,6 +196,29 @@ struct SettingsPane: View {
             launchAtLogin = SMAppService.mainApp.status == .enabled
             saveClipboardImages = NotchViewModel.saveClipboardImagesEnabled
             refreshUsage()
+            updater.checkIfStale()
+        }
+    }
+
+    @ViewBuilder
+    private var updateRow: some View {
+        switch updater.state {
+        case .idle:
+            actionRow(symbol: "arrow.triangle.2.circlepath", title: localized("Check for Updates")) { updater.check() }
+        case .checking:
+            actionRow(symbol: "arrow.triangle.2.circlepath", title: localized("Checking for Updates…"), disabled: true) {}
+        case .upToDate:
+            actionRow(symbol: "checkmark.circle", title: localized("Up to Date · %@", UpdateStore.currentVersion)) { updater.check() }
+        case .available(let version):
+            actionRow(symbol: "arrow.down.circle.fill", title: localized("Update to %@", version)) { updater.install() }
+        case .installing:
+            actionRow(symbol: "arrow.down.circle", title: localized("Installing Update…"), disabled: true) {}
+        case .manualOnly(let version):
+            actionRow(symbol: "safari", title: localized("Download %@ from GitHub", version)) {
+                NSWorkspace.shared.open(UpdateStore.releasesPage)
+            }
+        case .failed(let message):
+            actionRow(symbol: "exclamationmark.triangle", title: localized("Update failed: %@", message)) { updater.check() }
         }
     }
 

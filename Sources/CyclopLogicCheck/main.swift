@@ -80,6 +80,10 @@ enum CyclopLogicCheck {
         expect(UsageGrid.rows(for: 3) == 1 && UsageGrid.columns(for: 3) == 3, "3 → 1×3")
         expect(UsageGrid.rows(for: 4) == 2 && UsageGrid.columns(for: 4) == 2, "4 → 2×2")
 
+        expect(AppVersion.isNewer("v0.10.0", than: "0.9.0"), "0.10.0 newer than 0.9.0")
+        expect(!AppVersion.isNewer("v0.7.0", than: "0.7.0"), "same version is not newer")
+        expect(!AppVersion.isNewer("0.6.9", than: "0.7.0"), "older is not newer")
+
         if failed > 0 {
             FileHandle.standardError.write(Data("\(failed) checks failed\n".utf8))
             exit(1)
