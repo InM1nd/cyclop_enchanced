@@ -60,7 +60,8 @@ macOS 15 или новее. Первый запуск требует одног�
 ```bash
 git clone https://github.com/akalikbergenov/cyclop.git
 cd cyclop
-./Scripts/bundle.sh          # swift build + сборка .app + ad-hoc подпись
+./Scripts/make-signing-cert.sh  # один раз: локальный сертификат, чтобы macOS не сбрасывала разрешения после пересборки
+./Scripts/bundle.sh          # swift build + сборка .app + подпись (без сертификата — ad-hoc)
 swift run CyclopLogicCheck   # свечение и сетка Usage, без XCTest
 open build/Cyclop.app
 ```

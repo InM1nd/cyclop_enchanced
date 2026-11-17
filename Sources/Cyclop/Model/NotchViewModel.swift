@@ -292,7 +292,7 @@ final class NotchViewModel: ObservableObject {
     func reloadUsage(force: Bool = false) {
         usage.reload(force: force)
         cursor.reload(force: force)
-        codex.reload()
+        codex.reload(force: force)
         opencode.reload()
     }
 

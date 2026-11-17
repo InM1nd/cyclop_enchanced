@@ -62,20 +62,21 @@ final class ClaudeUsageStore: ObservableObject {
     }
 
     private func fetch() async {
-        guard let token = Self.token() else {
+        guard let token = await Self.token() else {
             noCredentials = true
             unreachable = false
             return
         }
-        if let fresh = await Self.fetchLive(token: token) {
-            snapshot = fresh
-            noCredentials = false
-            unreachable = false
-            return
+        var (fresh, status) = await Self.fetchLive(token: token)
+        // Only a rejected token is worth another look — going offline must
+        // not throw the cache away and send the next visit to Keychain.
+        if fresh == nil, status == 401 || status == 403 {
+            UsageTokenCache.clearClaude()
+            if let retry = await Self.token(), retry != token {
+                (fresh, _) = await Self.fetchLive(token: retry)
+            }
         }
-        UsageTokenCache.clearClaude()
-        if let retry = Self.token(), retry != token,
-           let fresh = await Self.fetchLive(token: retry) {
+        if let fresh {
             snapshot = fresh
             noCredentials = false
             unreachable = false
@@ -85,22 +86,22 @@ final class ClaudeUsageStore: ObservableObject {
         noCredentials = false
     }
 
-    /// Claude Code's file first (no dialog), then a silent Keychain read,
-    /// then Cyclop's own cache, then one prompt that is cached afterwards.
-    private static func token() -> String? {
+    /// Off the main thread: a first-time Keychain dialog must not freeze the UI.
+    private static func token() async -> String? {
+        await Task.detached(priority: .utility) { readToken() }.value
+    }
+
+    /// Claude Code's file first, then Cyclop's own cache, then Keychain —
+    /// which, read through `security`, does not ask for a password.
+    private nonisolated static func readToken() -> String? {
         let file = FileManager.default.homeDirectoryForCurrentUser
             .appending(path: ".claude/.credentials.json")
         if let data = try? Data(contentsOf: file), let token = extractAccessToken(data) {
             UsageTokenCache.storeClaude(token)
             return token
         }
-        if let data = UsageTokenCache.keychain(service: "Claude Code-credentials", allowPrompt: false),
-           let token = extractAccessToken(data) {
-            UsageTokenCache.storeClaude(token)
-            return token
-        }
         if let cached = UsageTokenCache.claude { return cached }
-        if let data = UsageTokenCache.keychain(service: "Claude Code-credentials", allowPrompt: true),
+        if let data = UsageTokenCache.keychain(service: "Claude Code-credentials"),
            let token = extractAccessToken(data) {
             UsageTokenCache.storeClaude(token)
             return token
@@ -108,7 +109,7 @@ final class ClaudeUsageStore: ObservableObject {
         return nil
     }
 
-    private static func extractAccessToken(_ data: Data) -> String? {
+    private nonisolated static func extractAccessToken(_ data: Data) -> String? {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         if let oauth = json["claudeAiOauth"] as? [String: Any], let token = oauth["accessToken"] as? String {
             return token
@@ -118,16 +119,15 @@ final class ClaudeUsageStore: ObservableObject {
 
     /// Same request the status line makes: zero LLM tokens spent, five
     /// seconds to answer or it is treated as unreachable.
-    private static func fetchLive(token: String) async -> ClaudeUsageSnapshot? {
+    private static func fetchLive(token: String) async -> (ClaudeUsageSnapshot?, Int?) {
         var request = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/usage")!)
         request.timeoutInterval = 5
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         guard let (data, response) = try? await URLSession.shared.data(for: request),
-              let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            return nil
-        }
+              let http = response as? HTTPURLResponse else { return (nil, nil) }
+        guard http.statusCode == 200 else { return (nil, http.statusCode) }
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         decoder.dateDecodingStrategy = .custom { decoder in
@@ -140,6 +140,6 @@ final class ClaudeUsageStore: ObservableObject {
             }
             return date
         }
-        return try? decoder.decode(ClaudeUsageSnapshot.self, from: data)
+        return (try? decoder.decode(ClaudeUsageSnapshot.self, from: data), 200)
     }
 }

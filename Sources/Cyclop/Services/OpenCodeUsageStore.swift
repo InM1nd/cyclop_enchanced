@@ -83,9 +83,15 @@ final class OpenCodeUsageStore: ObservableObject {
     }
 
     /// The local read is free and always fresh, so it runs on every reload;
-    /// only the live endpoint is throttled.
+    /// only the live endpoint is throttled. Dispatched to a background task so
+    /// SQLite reads never stall the UI.
     private func refreshLocal() {
-        local = Self.localStats()
+        Task {
+            let stats = await Task.detached(priority: .utility) {
+                Self.localStats()
+            }.value
+            self.local = stats
+        }
     }
 
     private func fetchPlan() async {
@@ -105,7 +111,7 @@ final class OpenCodeUsageStore: ObservableObject {
             noCredentials = false
             unreachable = false
         case .failure:
-            snapshot = nil
+            // Offline keeps the last plan numbers, same as Claude and Cursor.
             noCredentials = false
             unreachable = true
         }
@@ -151,7 +157,7 @@ final class OpenCodeUsageStore: ObservableObject {
     /// the messages table. `time_created` is milliseconds since the epoch —
     /// the same convention the rest of the store uses. JSON1 functions are
     /// used so the `data` blobs do not need to be parsed in Swift.
-    private static func localStats() -> OpenCodeLocalStats? {
+    private static nonisolated func localStats() -> OpenCodeLocalStats? {
         let url = FileManager.default.homeDirectoryForCurrentUser
             .appending(path: ".local/share/opencode/opencode.db")
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
@@ -179,7 +185,7 @@ final class OpenCodeUsageStore: ObservableObject {
     /// `sum(tokens.*)` over assistant messages at or after `since`. Assistant
     /// messages are the only ones that carry token counts; `coalesce` keeps a
     /// window with no messages from collapsing into NULLs.
-    private static func breakdown(db: OpaquePointer, since: Date) -> OpenCodeTokenBreakdown? {
+    private static nonisolated func breakdown(db: OpaquePointer, since: Date) -> OpenCodeTokenBreakdown? {
         let sql = """
         SELECT coalesce(sum(json_extract(data, '$.tokens.input')), 0),
                coalesce(sum(json_extract(data, '$.tokens.output')), 0),
@@ -206,7 +212,7 @@ final class OpenCodeUsageStore: ObservableObject {
 
     /// Spend per model at or after `since`, most expensive first. Capped at
     /// three so a long tail of free models never overflows the card.
-    private static func modelCosts(db: OpaquePointer, since: Date) -> [(model: String, cost: Double)] {
+    private static nonisolated func modelCosts(db: OpaquePointer, since: Date) -> [(model: String, cost: Double)] {
         let sql = """
         SELECT coalesce(json_extract(data, '$.modelID'), '?') AS model,
                coalesce(sum(json_extract(data, '$.cost')), 0) AS spend
@@ -232,7 +238,7 @@ final class OpenCodeUsageStore: ObservableObject {
     /// The timestamp of the newest assistant message — `nil` when the store
     /// holds no assistant message at all, which the card renders as "no
     /// sessions yet".
-    private static func latestAssistantTime(db: OpaquePointer) -> Date? {
+    private static nonisolated func latestAssistantTime(db: OpaquePointer) -> Date? {
         let sql = "SELECT max(time_created) FROM message WHERE json_extract(data, '$.role') = 'assistant'"
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return nil }
