@@ -57,6 +57,11 @@ echo "==> сборка образа $VERSION"
 "$ROOT/Scripts/dmg.sh" >/dev/null
 [ -f "$DMG" ] || fail "образ не собрался: $DMG"
 
+# Встроенное обновление ставит новую версию, только если она подписана тем же
+# сертификатом, что и установленная. Релиз с ad-hoc подписью не примет никто.
+codesign -dvv "$ROOT/build/Cyclop.app" 2>&1 | grep -q "^Authority=Cyclop Local Signing$" \
+    || fail "сборка подписана не «Cyclop Local Signing» — запусти ./Scripts/make-signing-cert.sh"
+
 echo "==> тег $TAG"
 git tag -a "$TAG" -m "Cyclop $VERSION"
 git push --quiet origin "$TAG"

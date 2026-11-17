@@ -131,6 +131,11 @@ or when the tag already exists.
 Built images live on the [releases page](https://github.com/akalikbergenov/cyclop/releases) —
 that is the link to hand to people instead of a file.
 
+After that, updates install from **Settings → General → Check for Updates**: the app
+downloads the latest release and installs it only if it is signed with the same
+certificate (`Scripts/make-signing-cert.sh`). An ad-hoc signed copy just opens the
+releases page.
+
 ## Permissions
 
 **None** — until you open the calendar. The app asks for no Automation, no
