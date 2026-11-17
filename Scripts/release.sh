@@ -59,7 +59,10 @@ echo "==> сборка образа $VERSION"
 
 # Встроенное обновление ставит новую версию, только если она подписана тем же
 # сертификатом, что и установленная. Релиз с ad-hoc подписью не примет никто.
-codesign -dvv "$ROOT/build/Cyclop.app" 2>&1 | grep -q "^Authority=Cyclop Local Signing$" \
+# Вывод сначала в переменную: grep -q закрывает трубу на первом совпадении,
+# codesign ловит SIGPIPE, и pipefail считает проверку проваленной.
+SIGNATURE="$(codesign -dvv "$ROOT/build/Cyclop.app" 2>&1)"
+grep -q "^Authority=Cyclop Local Signing$" <<<"$SIGNATURE" \
     || fail "сборка подписана не «Cyclop Local Signing» — запусти ./Scripts/make-signing-cert.sh"
 
 echo "==> тег $TAG"
