@@ -54,14 +54,25 @@ struct TranslatePane: View {
     // MARK: - Left
 
     private func source(_ font: CGFloat) -> some View {
-        column(Translator.name(translator.route.source)) {
-            if !translator.input.isEmpty {
-                Button { translator.reset() } label: {
-                    Image(systemName: "xmark")
+        column {
+            languageMenu(source: true)
+        } accessory: {
+            HStack(spacing: 8) {
+                Button { translator.swap() } label: {
+                    Image(systemName: "arrow.left.arrow.right")
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(Theme.secondary)
                 }
                 .buttonStyle(.plain)
+                .help(localized("Swap languages"))
+                if !translator.input.isEmpty {
+                    Button { translator.reset() } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Theme.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
         } content: {
             // A `TextField(axis: .vertical)` grows to fit its text, and growing
@@ -101,7 +112,9 @@ struct TranslatePane: View {
     // MARK: - Right
 
     private func result(_ font: CGFloat) -> some View {
-        column(Translator.name(translator.route.target)) {
+        column {
+            languageMenu(source: false)
+        } accessory: {
             if !translator.output.isEmpty {
                 CopyButton { translator.copyOutput() }
             }
@@ -129,9 +142,9 @@ struct TranslatePane: View {
                 HStack(spacing: 10) {
                     if translator.needsDownload {
                         Button(localized("Download")) { translator.requestDownload() }
-                        Button("Translation Languages…") { Translator.openLanguageSettings() }
+                        Button(localized("Translation Languages…")) { Translator.openLanguageSettings() }
                     }
-                    Button("Retry") { translator.retry() }
+                    Button(localized("Retry")) { translator.retry() }
                 }
                 .buttonStyle(.plain)
                 .font(.system(size: 10, weight: .medium))
@@ -191,17 +204,53 @@ struct TranslatePane: View {
 
     // MARK: - Shared
 
-    private func column<Accessory: View, Content: View>(
-        _ title: String,
+    private func languageMenu(source: Bool) -> some View {
+        let current = source
+            ? (translator.isSourceAuto ? localized("Auto") : Translator.name(translator.resolvedSource))
+            : Translator.name(translator.resolvedTarget)
+        return Menu {
+            Picker("", selection: source
+                ? Binding(
+                    get: { translator.sourceID },
+                    set: { id in translator.setSource(id.isEmpty ? nil : Locale.Language(identifier: id)) }
+                )
+                : Binding(
+                    get: { translator.targetID },
+                    set: { id in translator.setTarget(Locale.Language(identifier: id)) }
+                )
+            ) {
+                if source {
+                    Text(localized("Auto")).tag("")
+                }
+                ForEach(Translator.catalogIDs, id: \.self) { id in
+                    Text(Translator.name(Locale.Language(identifier: id))).tag(id)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.inline)
+        } label: {
+            HStack(spacing: 3) {
+                Text(current.uppercased())
+                    .font(.system(size: 9, weight: .semibold))
+                    .tracking(0.8)
+                    .foregroundStyle(Theme.tertiary)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 7, weight: .bold))
+                    .foregroundStyle(Theme.tertiary)
+            }
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+    }
+
+    private func column<Title: View, Accessory: View, Content: View>(
+        @ViewBuilder title: () -> Title,
         @ViewBuilder accessory: () -> Accessory,
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                Text(title.uppercased())
-                    .font(.system(size: 9, weight: .semibold))
-                    .tracking(0.8)
-                    .foregroundStyle(Theme.tertiary)
+                title()
                 Spacer(minLength: 4)
                 accessory()
             }
@@ -226,7 +275,7 @@ struct TranslatePane: View {
         try? await Task.sleep(for: .milliseconds(320))
         guard !Task.isCancelled else { return }
 
-        let route = Translator.route(for: text)
+        let route = translator.route
         if var current = configuration, current.source == route.source, current.target == route.target {
             // Same pair, different text. The modifier only re-runs when the
             // configuration changes, and invalidating is how one says "again".

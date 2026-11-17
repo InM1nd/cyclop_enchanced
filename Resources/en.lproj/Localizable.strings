@@ -31,6 +31,8 @@
 /* Settings tab */
 "General" = "General";
 "Modules" = "Modules";
+"Left" = "Left";
+"Right" = "Right";
 "Work" = "Work";
 "Call" = "Call";
 "Minimal" = "Minimal";
@@ -85,6 +87,8 @@
 "Downloading the language pack…" = "Downloading the language pack…";
 "The %@ → %@ language pack is not installed." = "The %@ → %@ language pack is not installed.";
 "macOS does not translate this pair of languages." = "macOS does not translate this pair of languages.";
+"Auto" = "Auto";
+"Swap languages" = "Swap languages";
 
 /* Calendar */
 "Join" = "Join";

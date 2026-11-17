@@ -30,6 +30,8 @@
 /* Вкладка настроек */
 "General" = "Общее";
 "Modules" = "Модули";
+"Left" = "Слева";
+"Right" = "Справа";
 "Work" = "Работа";
 "Call" = "Звонок";
 "Minimal" = "Минимум";
@@ -84,6 +86,8 @@
 "Downloading the language pack…" = "Скачивается языковой пакет…";
 "The %@ → %@ language pack is not installed." = "Не скачан языковой пакет %@ → %@.";
 "macOS does not translate this pair of languages." = "macOS не переводит эту пару языков.";
+"Auto" = "Авто";
+"Swap languages" = "Поменять языки";
 
 /* Календарь */
 "Join" = "Подключиться";

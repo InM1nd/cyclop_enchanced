@@ -92,16 +92,8 @@ struct SettingsPane: View {
                     }
                     .padding(.bottom, 2)
 
-                    ForEach(NotchViewModel.Tab.toggleable) { tab in
-                        toggleRow(
-                            symbol: tab.symbol,
-                            title: tab.title,
-                            isOn: Binding(
-                                get: { modules.isEnabled(tab) },
-                                set: { setModuleEnabled(tab, $0) }
-                            )
-                        )
-                    }
+                    railGroup(localized("Left"), tabs: modules.left)
+                    railGroup(localized("Right"), tabs: modules.right)
                 }
 
                 section(localized("Screenshots")) {
@@ -359,6 +351,62 @@ struct SettingsPane: View {
         .buttonStyle(.plain)
         .disabled(disabled)
         .opacity(disabled ? 0.4 : 1)
+    }
+
+    private func railGroup(_ title: String, tabs: [NotchViewModel.Tab]) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(title.uppercased())
+                .font(.system(size: 9, weight: .semibold))
+                .tracking(0.6)
+                .foregroundStyle(Theme.tertiary)
+                .padding(.leading, 8)
+                .padding(.top, 4)
+            ForEach(tabs) { tab in
+                moduleRow(tab)
+            }
+        }
+    }
+
+    private func moduleRow(_ tab: NotchViewModel.Tab) -> some View {
+        let locked = tab == .settings
+        return HStack(spacing: 6) {
+            Image(systemName: tab.symbol)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Theme.secondary)
+                .frame(width: 16)
+            Text(tab.title)
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(.white)
+            Spacer(minLength: 4)
+            if !locked {
+                railButton("chevron.up") { modules.move(tab, by: -1) }
+                railButton("chevron.down") { modules.move(tab, by: 1) }
+                railButton("sidebar.left") { modules.setLeft(tab, true) }
+                    .opacity(modules.isLeft(tab) ? 1 : 0.35)
+                railButton("sidebar.right") { modules.setLeft(tab, false) }
+                    .opacity(modules.isLeft(tab) ? 0.35 : 1)
+                Toggle("", isOn: Binding(
+                    get: { modules.isEnabled(tab) },
+                    set: { setModuleEnabled(tab, $0) }
+                ))
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .labelsHidden()
+            }
+        }
+        .padding(.horizontal, 8)
+        .frame(height: 26)
+    }
+
+    private func railButton(_ symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(Theme.secondary)
+                .frame(width: 16, height: 16)
+                .background(Circle().fill(Theme.surfaceHover))
+        }
+        .buttonStyle(.plain)
     }
 }
 

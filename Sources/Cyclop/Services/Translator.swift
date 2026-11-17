@@ -1,78 +1,122 @@
 import AppKit
 import Translation
 
-/// Apple's on-device translator, driven from the panel.
-///
-/// The session is not ours to create: `translationTask` hands one over and owns
-/// its lifetime, so everything here is about deciding *what* to translate and
-/// holding the result. `TranslatePane` supplies the session.
+/// On-device translation. Source and target are named languages the user
+/// picked — Auto on the source still guesses from script, because a single
+/// word is too short for Apple's identifier and "привет" comes back Bulgarian.
 @MainActor
 final class Translator: ObservableObject {
     static let russian = Locale.Language(identifier: "ru")
     static let english = Locale.Language(identifier: "en")
 
-    /// Both ends are always named. Leaving the source to the framework looks
-    /// tempting, but its identifier is a separate asset that is not installed
-    /// either — auto-detection fails with `unableToIdentifyLanguage`, and the
-    /// translation that follows hangs instead of returning an error.
+    /// Languages Translation.framework commonly has packs for. The pane will
+    /// still say so if a pair is missing — this is the menu, not a promise.
+    static let catalogIDs: [String] = [
+        "en", "ru", "uk", "de", "fr", "es", "it", "pt", "pl", "nl",
+        "tr", "ar", "zh-Hans", "zh-Hant", "ja", "ko", "th", "vi", "id", "hi",
+    ]
+    static let catalog: [Locale.Language] = catalogIDs.map { Locale.Language(identifier: $0) }
+
     struct Route: Equatable {
         var source: Locale.Language
         var target: Locale.Language
     }
 
-    /// Keyed by the pane's debounced task. The counter is what makes a retry of
-    /// unchanged text a new request rather than a no-op.
     struct Request: Equatable {
         var text: String
         var attempt: Int
+        var sourceID: String
+        var targetID: String
     }
 
     @Published var input = ""
     @Published private(set) var output = ""
     @Published private(set) var failure: String?
-    /// The failure is a missing language pack, which is a thing the user can
-    /// go and fix — so the pane offers the button that takes them there.
     @Published private(set) var needsDownload = false
-    /// True while `prepareTranslation()` is waiting on the system's own
-    /// download sheet — shown so a click that takes a few seconds to answer
-    /// does not look like nothing happened.
     @Published private(set) var isDownloading = false
+    /// Empty string means Auto — script picks the source.
+    @Published private(set) var sourceID: String
+    @Published private(set) var targetID: String
 
     private var attempt = 0
-    /// Set by `requestDownload()`, consumed by the next `run(_:)`. One-shot
-    /// because the download prompt is only ever the user's own click — see
-    /// the comment on `run(_:)` for why it cannot be automatic.
     private var pendingDownload = false
 
-    var request: Request { Request(text: input, attempt: attempt) }
-    var trimmed: String { input.trimmingCharacters(in: .whitespacesAndNewlines) }
-    var route: Route { Self.route(for: trimmed) }
+    private static let sourceKey = "translator.source"
+    private static let targetKey = "translator.target"
 
-    /// Russian goes out to English, everything else comes in to Russian.
-    ///
-    /// Decided by script rather than by language detection: a single word is
-    /// far too short to identify reliably, and "привет" comes back as Bulgarian
-    /// often enough to matter.
-    static func route(for text: String) -> Route {
-        let cyrillic = text.unicodeScalars.contains { (0x0400...0x04FF).contains($0.value) }
-        return cyrillic
-            ? Route(source: russian, target: english)
-            : Route(source: english, target: russian)
+    init() {
+        let defaults = UserDefaults.standard
+        let storedSource = defaults.string(forKey: Self.sourceKey) ?? ""
+        sourceID = storedSource
+        let storedTarget = defaults.string(forKey: Self.targetKey) ?? Self.id(Self.russian)
+        targetID = storedTarget.isEmpty ? Self.id(Self.russian) : storedTarget
+    }
+
+    var request: Request {
+        Request(text: input, attempt: attempt, sourceID: sourceID, targetID: targetID)
+    }
+    var trimmed: String { input.trimmingCharacters(in: .whitespacesAndNewlines) }
+    var isSourceAuto: Bool { sourceID.isEmpty }
+    var route: Route { Route(source: resolvedSource, target: resolvedTarget) }
+
+    var resolvedTarget: Locale.Language { language(from: targetID) ?? Self.russian }
+
+    var resolvedSource: Locale.Language {
+        if let pinned = language(from: sourceID) { return pinned }
+        let detected = Self.detectSource(for: trimmed)
+        if Self.id(detected) == Self.id(resolvedTarget) {
+            return Self.id(resolvedTarget) == Self.id(Self.english) ? Self.russian : Self.english
+        }
+        return detected
+    }
+
+    func setSource(_ language: Locale.Language?) {
+        sourceID = language.map(Self.id) ?? ""
+        UserDefaults.standard.set(sourceID, forKey: Self.sourceKey)
+        retry()
+    }
+
+    func setTarget(_ language: Locale.Language) {
+        targetID = Self.id(language)
+        UserDefaults.standard.set(targetID, forKey: Self.targetKey)
+        if !isSourceAuto, sourceID == targetID {
+            sourceID = ""
+            UserDefaults.standard.set(sourceID, forKey: Self.sourceKey)
+        }
+        retry()
+    }
+
+    func swap() {
+        let newTarget = resolvedSource
+        let newSource = resolvedTarget
+        sourceID = Self.id(newSource)
+        targetID = Self.id(newTarget)
+        UserDefaults.standard.set(sourceID, forKey: Self.sourceKey)
+        UserDefaults.standard.set(targetID, forKey: Self.targetKey)
+        retry()
+    }
+
+    /// Russian / other Cyrillic → ru, Hangul → ko, kana → ja, Han → zh-Hans,
+    /// Arabic → ar, Thai → th, Devanagari → hi, everything else → en.
+    static func detectSource(for text: String) -> Locale.Language {
+        let scalars = text.unicodeScalars
+        func any(_ range: ClosedRange<UInt32>) -> Bool {
+            scalars.contains { range.contains($0.value) }
+        }
+        if any(0x0400...0x04FF) { return russian }
+        if any(0xAC00...0xD7AF) { return Locale.Language(identifier: "ko") }
+        if any(0x3040...0x30FF) { return Locale.Language(identifier: "ja") }
+        if any(0x4E00...0x9FFF) { return Locale.Language(identifier: "zh-Hans") }
+        if any(0x0600...0x06FF) { return Locale.Language(identifier: "ar") }
+        if any(0x0E00...0x0E7F) { return Locale.Language(identifier: "th") }
+        if any(0x0900...0x097F) { return Locale.Language(identifier: "hi") }
+        return english
     }
 
     func retry() {
         attempt += 1
     }
 
-    /// Asks macOS to download the missing language pack, right from the
-    /// button that told the user it was missing.
-    ///
-    /// `prepareTranslation()` blocks on a system sheet, and that sheet needs
-    /// a foreground app to appear over — this panel stays background even
-    /// while it holds the keyboard (`.nonactivatingPanel`), which is why a
-    /// silent attempt from `run(_:)` used to hang forever. Activating first,
-    /// and only on the user's own click, gives the sheet somewhere to land
-    /// without turning every open of this tab into a surprise Dock icon.
     func requestDownload() {
         pendingDownload = true
         retry()
@@ -96,9 +140,6 @@ final class Translator: ObservableObject {
 
         var status = await LanguageAvailability().status(from: source, to: target)
 
-        // Only reached from the pane's "Download" button, never on its own —
-        // see `requestDownload()`. A 20 s cap means a sheet that never gets
-        // answered leaves the tab usable again instead of stuck loading.
         if status == .supported, pendingDownload {
             pendingDownload = false
             NSApp.activate(ignoringOtherApps: true)
@@ -144,28 +185,35 @@ final class Translator: ObservableObject {
         pasteboard.setString(output, forType: .string)
     }
 
-    /// "Русский", "English" — for the column headers. Named in the language the
-    /// panel itself is in, not in the system's: those two can differ, and a
-    /// column headed in one language above a button worded in another reads as
-    /// a mistake.
     static func name(_ language: Locale.Language) -> String {
-        guard let code = language.languageCode?.identifier,
-              let name = Locale(identifier: appLanguage).localizedString(forLanguageCode: code) else {
-            return language.languageCode?.identifier.uppercased() ?? "?"
-        }
-        return name.prefix(1).uppercased() + name.dropFirst()
+        let locale = Locale(identifier: appLanguage)
+        let raw = locale.localizedString(forIdentifier: language.maximalIdentifier)
+            ?? language.languageCode.flatMap { locale.localizedString(forLanguageCode: $0.identifier) }
+            ?? language.languageCode?.identifier.uppercased()
+            ?? "?"
+        return raw.prefix(1).uppercased() + raw.dropFirst()
     }
 
-    /// Short code for the header badge — "EN → RU" reads at a glance where a
-    /// spelled-out name would not fit in the strip.
     static func code(_ language: Locale.Language) -> String {
         language.languageCode?.identifier.uppercased() ?? "?"
     }
 
-    /// System Settings → General → Language & Region, which is where the
-    /// "Translation Languages…" button lives.
+    /// Catalog key if we have one (`zh-Hans`, `en`), otherwise the maximal id.
+    /// Storing the short key keeps the menu checkmark matching after relaunch.
+    static func id(_ language: Locale.Language) -> String {
+        let maximal = language.maximalIdentifier
+        return catalogIDs.first { Locale.Language(identifier: $0).maximalIdentifier == maximal }
+            ?? language.languageCode?.identifier
+            ?? maximal
+    }
+
     static func openLanguageSettings() {
         guard let url = URL(string: "x-apple.systempreferences:com.apple.Localization-Settings.extension") else { return }
         NSWorkspace.shared.open(url)
+    }
+
+    private func language(from id: String) -> Locale.Language? {
+        guard !id.isEmpty else { return nil }
+        return Locale.Language(identifier: id)
     }
 }

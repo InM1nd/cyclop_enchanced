@@ -57,12 +57,12 @@ final class NotchViewModel: ObservableObject {
         /// column rather than the content rail: it is not something to hover
         /// past on the way to a track or a calendar, so it sits last,
         /// furthest from the tabs people actually rest on.
-        static let leftRail: [Tab] = [.media, .shelf, .clipboard, .snippets, .calendar, .translate]
-        static let rightRail: [Tab] = [.notes, .memory, .teleprompter, .credits, .pomodoro, .colorPicker, .settings]
+        static let defaultLeftRail: [Tab] = [.media, .shelf, .clipboard, .snippets, .calendar, .translate]
+        static let defaultRightRail: [Tab] = [.notes, .memory, .teleprompter, .credits, .pomodoro, .colorPicker, .settings]
 
         /// Tabs the user may hide. Settings stays so the switches remain reachable.
         static var toggleable: [Tab] {
-            leftRail + rightRail.filter { $0 != .settings }
+            allCases.filter { $0 != .settings }
         }
     }
 
@@ -156,8 +156,8 @@ final class NotchViewModel: ObservableObject {
     /// cannot own a window of its own.
     var onOpenFullSettings: (() -> Void)?
 
-    var visibleLeftRail: [Tab] { Tab.leftRail.filter { modules.isEnabled($0) } }
-    var visibleRightRail: [Tab] { Tab.rightRail.filter { modules.isEnabled($0) } }
+    var visibleLeftRail: [Tab] { modules.left.filter { modules.isEnabled($0) } }
+    var visibleRightRail: [Tab] { modules.right.filter { modules.isEnabled($0) } }
     var railIconCount: Int { max(visibleLeftRail.count, visibleRightRail.count, 1) }
 
     func setModuleEnabled(_ tab: Tab, _ on: Bool) {
