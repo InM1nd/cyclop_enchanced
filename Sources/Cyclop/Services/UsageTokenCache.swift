@@ -1,11 +1,8 @@
 import Foundation
-import LocalAuthentication
-import Security
 
 /// Keychain reads of Claude's and Cursor's items pop a password dialog for
-/// any app that is not already on the item's ACL — and an ad-hoc rebuild
-/// looks like a new app every time. The dialog is suppressed; a successful
-/// read is cached in Cyclop's own folder so the next visit never asks.
+/// any app that is not already on the item's ACL. A successful read is
+/// cached in Cyclop's own folder so the next visit never asks.
 enum UsageTokenCache {
     private static let url = Support.file("usage-tokens.json")
 
@@ -17,26 +14,26 @@ enum UsageTokenCache {
     static func clearClaude() { write("claude", nil) }
     static func clearCursor() { write("cursor", nil) }
 
-    /// `allowPrompt` is the last resort — once, then the bytes live in the
-    /// cache file and Keychain is not asked again.
-    static func keychain(service: String, account: String? = nil, allowPrompt: Bool) -> Data? {
-        let context = LAContext()
-        context.interactionNotAllowed = !allowPrompt
-        var query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-            kSecUseAuthenticationContext as String: context,
-        ]
-        if let account {
-            query[kSecAttrAccount as String] = account
-        }
-        var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess else {
-            return nil
-        }
-        return item as? Data
+    /// Read through Apple's `security` tool, not SecItemCopyMatching. Claude
+    /// Code writes its item with that same tool, so `/usr/bin/security` is
+    /// already on the item's ACL and no dialog appears. For Cursor's item one
+    /// "Always Allow" sticks to `/usr/bin/security`, whose identity survives
+    /// Cyclop rebuilds — an ad-hoc signed Cyclop looks new on every build.
+    static func keychain(service: String, account: String? = nil) -> Data? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+        var arguments = ["find-generic-password", "-s", service, "-w"]
+        if let account { arguments += ["-a", account] }
+        process.arguments = arguments
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return nil }
+        var data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return nil }
+        while data.last == UInt8(ascii: "\n") { data.removeLast() }
+        return data.isEmpty ? nil : data
     }
 
     private static func read(_ key: String) -> String? {

@@ -118,10 +118,10 @@ struct CreditsPane: View {
         brand("CODEX", running: sessions.codexCount)
         if let rateLimits = codex.snapshot {
             if let primary = rateLimits.primary {
-                row(title: windowLabel(minutes: primary.windowMinutes), percent: primary.usedPercent, resetsAt: primary.resetDate)
+                row(title: windowLabel(minutes: primary.windowMinutes), percent: primary.currentPercent, resetsAt: primary.currentResetDate)
             }
             if let secondary = rateLimits.secondary {
-                row(title: windowLabel(minutes: secondary.windowMinutes), percent: secondary.usedPercent, resetsAt: secondary.resetDate)
+                row(title: windowLabel(minutes: secondary.windowMinutes), percent: secondary.currentPercent, resetsAt: secondary.currentResetDate)
             }
             if let credits = rateLimits.credits, credits.hasCredits, let balance = credits.balance {
                 HStack(spacing: 4) {

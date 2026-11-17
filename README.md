@@ -61,7 +61,8 @@ area at the top centre of the screen as one.
 ```bash
 git clone https://github.com/akalikbergenov/cyclop.git
 cd cyclop
-./Scripts/bundle.sh          # swift build + assemble the .app + ad-hoc sign
+./Scripts/make-signing-cert.sh  # once: local certificate, so macOS keeps permissions across rebuilds
+./Scripts/bundle.sh          # swift build + assemble the .app + sign (ad-hoc without the certificate)
 swift run CyclopLogicCheck   # glow + Usage grid, no XCTest needed
 open build/Cyclop.app
 ```

@@ -1,6 +1,7 @@
 #!/bin/bash
 # Builds Cyclop.app without Xcode: SwiftPM produces the binary, this script
-# assembles the bundle around it and ad-hoc signs it.
+# assembles the bundle around it and signs it — with the local certificate
+# from make-signing-cert.sh when there is one, ad-hoc otherwise.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -74,7 +75,18 @@ clang -dynamiclib -fobjc-arc -O2 \
     -o "$APP/Contents/Resources/libcyclopmedia.dylib" \
     "$ROOT/Sources/CyclopMediaHelper/helper.m"
 
-echo "==> ad-hoc signing"
+# Постоянный сертификат держит личность приложения одной и той же между
+# сборками, и macOS не спрашивает разрешения заново. Нет его — ad-hoc, как
+# раньше, с подсказкой, как завести.
+IDENTITY="${CYCLOP_SIGN_IDENTITY:-Cyclop Local Signing}"
+if security find-certificate -c "$IDENTITY" >/dev/null 2>&1; then
+    SIGN="$IDENTITY"
+    echo "==> signing with «${IDENTITY}»"
+else
+    SIGN="-"
+    echo "==> ad-hoc signing (разрешения будут слетать после пересборки:"
+    echo "    один раз запусти ./Scripts/make-signing-cert.sh)"
+fi
 # Расширенные атрибуты снимаются первыми. iCloud вешает на файлы
 # com.apple.FinderInfo, а codesign отказывается подписывать что-либо с ним —
 # «resource fork, Finder information, or similar detritus not allowed». Папка
@@ -87,7 +99,7 @@ xattr -cr "$APP"
 # бандл, про который codesign говорит «code object is not signed at all».
 # Заметить это можно было только по возвращающимся запросам TCC — то есть у
 # того, кто уже поставил приложение.
-codesign --force --deep --sign - "$APP" || {
+codesign --force --deep --sign "$SIGN" "$APP" || {
     echo "!!! codesign не смог подписать бандл — см. вывод выше" >&2
     exit 1
 }

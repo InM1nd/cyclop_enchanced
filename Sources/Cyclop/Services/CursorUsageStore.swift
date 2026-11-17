@@ -50,20 +50,21 @@ final class CursorUsageStore: ObservableObject {
     }
 
     private func fetch() async {
-        guard let token = Self.token() else {
+        guard let token = await Self.token() else {
             noCredentials = true
             unreachable = false
             return
         }
-        if let fresh = await Self.fetchLive(token: token) {
-            snapshot = fresh
-            noCredentials = false
-            unreachable = false
-            return
+        var (fresh, status) = await Self.fetchLive(token: token)
+        // Only a rejected token is worth another look — going offline must
+        // not throw the cache away and send the next visit to Keychain.
+        if fresh == nil, status == 401 || status == 403 {
+            UsageTokenCache.clearCursor()
+            if let retry = await Self.token(), retry != token {
+                (fresh, _) = await Self.fetchLive(token: retry)
+            }
         }
-        UsageTokenCache.clearCursor()
-        if let retry = Self.token(), retry != token,
-           let fresh = await Self.fetchLive(token: retry) {
+        if let fresh {
             snapshot = fresh
             noCredentials = false
             unreachable = false
@@ -73,28 +74,22 @@ final class CursorUsageStore: ObservableObject {
         noCredentials = false
     }
 
-    private static func token() -> String? {
-        if let data = UsageTokenCache.keychain(
-            service: "cursor-access-token",
-            account: "cursor-user",
-            allowPrompt: false
-        ), let token = String(data: data, encoding: .utf8), !token.isEmpty {
-            UsageTokenCache.storeCursor(token)
-            return token
-        }
+    /// Off the main thread: a first-time Keychain dialog must not freeze the UI.
+    private static func token() async -> String? {
+        await Task.detached(priority: .utility) { readToken() }.value
+    }
+
+    private nonisolated static func readToken() -> String? {
         if let cached = UsageTokenCache.cursor { return cached }
-        if let data = UsageTokenCache.keychain(
-            service: "cursor-access-token",
-            account: "cursor-user",
-            allowPrompt: true
-        ), let token = String(data: data, encoding: .utf8), !token.isEmpty {
+        if let data = UsageTokenCache.keychain(service: "cursor-access-token", account: "cursor-user"),
+           let token = String(data: data, encoding: .utf8), !token.isEmpty {
             UsageTokenCache.storeCursor(token)
             return token
         }
         return nil
     }
 
-    private static func fetchLive(token: String) async -> CursorUsageResponse? {
+    private static func fetchLive(token: String) async -> (CursorUsageResponse?, Int?) {
         var request = URLRequest(url: URL(string: "https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage")!)
         request.httpMethod = "POST"
         request.timeoutInterval = 5
@@ -103,9 +98,8 @@ final class CursorUsageStore: ObservableObject {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("1", forHTTPHeaderField: "Connect-Protocol-Version")
         guard let (data, response) = try? await URLSession.shared.data(for: request),
-              let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            return nil
-        }
-        return try? JSONDecoder().decode(CursorUsageResponse.self, from: data)
+              let http = response as? HTTPURLResponse else { return (nil, nil) }
+        guard http.statusCode == 200 else { return (nil, http.statusCode) }
+        return (try? JSONDecoder().decode(CursorUsageResponse.self, from: data), 200)
     }
 }
